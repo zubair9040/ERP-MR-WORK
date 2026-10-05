@@ -57,6 +57,17 @@ def create_app(test_config=None):
         if not allowed(request.endpoint, request.method):
             abort(403)
 
+    @app.after_request
+    def security_headers(resp):
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        resp.headers.setdefault("Referrer-Policy", "same-origin")
+        if request.endpoint != "static":
+            resp.headers.setdefault("Cache-Control", "no-store")
+        if app.config.get("SESSION_COOKIE_SECURE"):
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        return resp
+
     def _companies():
         from .companies import companies
         return companies()

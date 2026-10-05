@@ -1,5 +1,7 @@
 """Login, roles, CSRF protection and data scoping for sales reps."""
+import hmac
 import secrets
+import time
 from functools import wraps
 
 from flask import abort, g, request, session
@@ -114,5 +116,29 @@ def csrf_field():
 def check_csrf():
     if request.method == "POST":
         sent = request.form.get("_csrf") or request.headers.get("X-CSRF")
-        if not sent or sent != session.get("csrf"):
+        if not sent or not hmac.compare_digest(str(sent), str(session.get("csrf", ""))):
             abort(400, "Your session expired. Please go back, refresh the page and try again.")
+
+
+# ---- login brute-force protection: 5 wrong passwords lock that username + address for 10 minutes ----
+_FAILS = {}
+MAX_FAILS, LOCK_SECONDS = 5, 600
+
+
+def _fail_key(username):
+    return (request.remote_addr or "", username.lower())
+
+
+def login_locked(username):
+    rec = _FAILS.get(_fail_key(username))
+    return bool(rec and rec[0] >= MAX_FAILS and time.time() - rec[1] < LOCK_SECONDS)
+
+
+def login_failed(username):
+    k = _fail_key(username)
+    n, t = _FAILS.get(k, (0, 0))
+    _FAILS[k] = (1 if time.time() - t > LOCK_SECONDS else n + 1, time.time())
+
+
+def login_ok(username):
+    _FAILS.pop(_fail_key(username), None)

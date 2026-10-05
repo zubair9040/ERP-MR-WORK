@@ -7,7 +7,7 @@ from flask import (Blueprint, abort, current_app, flash, g, redirect, render_tem
                    session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .auth import co_filter, current_company, is_rep, rep_filter, sees_cost
+from .auth import co_filter, current_company, is_rep, login_failed, login_locked, login_ok, rep_filter, sees_cost
 from .db import commit, fmt, now, parse_date, q, set_setting, settings, today, to_paisa, x
 from .ledger import customers_with_balance
 
@@ -47,12 +47,17 @@ def login():
     if not q("SELECT 1 FROM users LIMIT 1"):
         return redirect(url_for("core.setup"))
     if request.method == "POST":
-        u = q("SELECT * FROM users WHERE username = ? AND active = 1", (request.form.get("username", "").strip(),),
-              one=True)
+        uname = request.form.get("username", "").strip()
+        if login_locked(uname):
+            flash("Too many wrong attempts. Please wait 10 minutes and try again.", "err")
+            return render_template("login.html")
+        u = q("SELECT * FROM users WHERE username = ? AND active = 1", (uname,), one=True)
         if u and check_password_hash(u["password_hash"], request.form.get("password", "")):
+            login_ok(uname)
             _login(u)
             nxt = request.args.get("next", "")
             return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("core.dashboard"))
+        login_failed(uname)
         flash("Wrong username or password.", "err")
     return render_template("login.html")
 
