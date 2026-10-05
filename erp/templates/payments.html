@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Collections (payments received){% endblock %}
+{% block actions %}<a class="btn light" href="{{ url_for('sales.transactions', type='payment') }}">{{ icon('list', 16) }} All transactions</a>{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters">
+  <label>Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Customer, reference or #"></label>
+  <label>Method<select name="method"><option value="">All</option>{% for m in methods %}<option {{ 'selected' if request.args.method == m }}>{{ m }}</option>{% endfor %}</select></label>
+  <label>From<input type="date" name="from" value="{{ request.args.get('from', '') }}"></label>
+  <label>To<input type="date" name="to" value="{{ request.args.to or '' }}"></label>
+  <button class="btn grey">Filter</button>
+  {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+</form>
+<div class="tablewrap"><table>
+<tr><th>#</th><th>Date</th><th>Customer</th><th>Method</th><th>Reference</th><th class="n">Amount</th></tr>
+{% for p in rows %}<tr class="{{ 'voided' if p.void }}"><td><a href="{{ url_for('sales.payment_view', pid=p.id) }}">{{ p.number }}</a></td>
+  <td>{{ p.date|d }}</td><td>{{ p.customer }}</td><td>{{ p.method }}</td><td>{{ p.reference }}</td><td class="n">{{ p.amount|money }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">No payments found.</td></tr>{% endfor %}
+<tr class="total"><td colspan="5">{{ rows|length }} payments</td><td class="n">{{ cur }} {{ total|money }}</td></tr>
+</table></div></div>
+{% endblock %}

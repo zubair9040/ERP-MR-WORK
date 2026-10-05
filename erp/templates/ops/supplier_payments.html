@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Supplier payments{% endblock %}
+{% block actions %}<a class="btn grey" href="{{ url_for('ops.supplier_payment_new') }}">{{ icon('plus', 16) }} Pay a supplier</a>{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters">
+  {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+</form>
+<div class="tablewrap"><table>
+<tr><th>#</th><th>Date</th><th>Supplier</th><th>Method</th><th>Reference</th><th class="n">Amount</th><th></th></tr>
+{% for r in rows %}<tr class="{{ 'voided' if r.void }}"><td>{{ r.number }}</td><td>{{ r.date|d }}</td>
+  <td><a href="{{ url_for('ops.supplier_view', sid=r.supplier_id) }}">{{ r.supplier }}</a>{% if all_companies()|length > 1 %} <span class="muted" style="font-size:12px">paid from</span> {{ co_tag(r.company_id) }}{% endif %}</td><td>{{ r.method }}</td><td>{{ r.reference }}</td><td class="n">{{ r.amount|money }}</td>
+  <td class="n nowrap"><a target="_blank" href="{{ url_for('sup.supplier_payment_pdf', yid=r.id) }}" title="Payment advice PDF">{{ icon('pdf', 14) }}</a>
+  {% if not r.void %}<form method="post" action="{{ url_for('sup.supplier_payment_whatsapp', yid=r.id) }}" class="inl">{{ csrf_field() }}<button class="link" title="Send payment advice on WhatsApp" style="color:var(--wa)">{{ icon('whatsapp', 14) }}</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No supplier payments yet.</td></tr>{% endfor %}
+<tr class="total"><td colspan="5">{{ rows|length }} payments</td><td class="n">{{ cur }} {{ total|money }}</td><td></td></tr>
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% set is_p = kind == 'purchase' %}
+{% block title %}{{ (('Edit bill #' if is_p else 'Edit credit note #') ~ doc.number) if doc else (('Purchase bill #' ~ next_no) if is_p else 'New return / credit note') }}{% endblock %}
+{% macro v(key, default='') %}{{ f[key] if f and f.get(key) not in (none, '') else (doc[key] if doc and doc[key] is not none else default) }}{% endmacro %}
+{% block content %}
+<form method="post" id="docform" autocomplete="off">
+{{ csrf_field() }}
+<div class="qb-toolbar">
+  <a class="tb" href="{{ url_for('ops.purchases' if is_p else 'ops.credit_notes') }}">{{ icon('list', 16) }} <span>All {{ 'bills' if is_p else 'returns' }}</span></a>
+  <span class="sep"></span>
+  <button class="tb" name="action" value="save">{{ icon('save', 16) }} <span>Save</span></button>
+</div>
+<div class="qb" style="grid-template-columns:1fr">
+  <div class="qb-main">
+    <div class="qb-bar">
+      <label>{{ 'SUPPLIER' if is_p else 'CUSTOMER' }}
+        <select name="party_id" required><option value="">— choose —</option>
+          {% set cur_party = (f.party_id or (doc.supplier_id if is_p else doc.customer_id) if doc else f.party_id)|string %}
+          {% for p in parties %}<option value="{{ p.id }}" {{ 'selected' if cur_party == p.id|string }}>{{ p.name }}</option>{% endfor %}
+        </select></label>
+    </div>
+    <div class="qb-doc">
+      <div class="qb-top">
+        <div class="qb-title"><div class="big">{{ self.title() }}</div>
+          <div class="muted" style="margin-top:6px">{{ 'This bill is for accounts only. To put the goods into stock, make a goods receipt in the Warehouse.' if is_p else 'The customer\'s balance goes down by this amount. If goods came back, receive them in the Warehouse.' }}</div></div>
+        <div class="qb-fields" style="grid-template-columns:160px 160px 160px">
+          <label>DATE<input type="date" name="date" value="{{ v('date', today) }}" required></label>
+          {% if is_p %}
+          <label>BILL # <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">(automatic)</span><input name="number" value="{{ v('number', next_no) }}" inputmode="numeric"></label>
+          <label>SUPPLIER'S BILL NO.<input name="bill_no" value="{{ v('bill_no') }}"></label>
+          {% if companies|length > 1 %}<label>BOUGHT UNDER<select name="company_id">{% for co in companies %}
+            <option value="{{ co.id }}" {{ 'selected' if (f.company_id if f and f.company_id else purchase_co)|string == co.id|string }}>{{ co.name }}{{ '' if co.gst_registered else ' (non-GST)' }}</option>{% endfor %}</select></label>{% endif %}
+          <label>DUE DATE<input type="date" name="due_date" value="{{ v('due_date') }}" title="Blank = supplier's terms"></label>
+          {% else %}
+          <label>AGAINST INVOICE #<input name="invoice_ref" value="{{ v('invoice_ref') }}"></label>
+          {% endif %}
+        </div>
+      </div>
+      <datalist id="itemcodes">{% for it in items %}<option value="{{ it.code }}">{{ it.name }}{{ ' · stock ' ~ it.stock if it.stock != '' }}</option>{% endfor %}</datalist>
+      <div class="grid-wrap" style="margin-top:14px">
+        <table class="grid" id="grid">
+          <thead><tr><th class="c-qty">QTY</th><th class="c-um">U/M</th><th class="c-code">ITEM CODE</th><th>DESCRIPTION</th>
+            <th class="c-price">{{ 'COST EACH' if is_p else 'RATE' }}</th><th class="c-amt">AMOUNT</th><th class="c-x"></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="qb-bottom">
+        <div class="qb-notes">
+          <label>NOTES<input name="notes" value="{{ v('notes') }}"></label>
+          <label class="inline">TAX %<input name="tax_rate" id="taxrate" value="{{ f.tax_rate if f and f.tax_rate else ('%g'|format(doc.tax_rate) if doc else '0') }}" size="4"></label>
+        </div>
+        <table class="qb-totals">
+          <tr><td>SUBTOTAL</td><td>{{ cur }}</td><td class="n" id="t_sub">0.00</td></tr>
+          <tr><td>TAX</td><td>{{ cur }}</td><td class="n" id="t_tax">0.00</td></tr>
+          <tr class="bal"><td>{{ 'TOTAL' if is_p else 'CREDIT' }}</td><td>{{ cur }}</td><td class="n" id="t_total">0.00</td></tr>
+        </table>
+      </div>
+      <div class="qb-buttons">
+        <button class="btn grey" name="action" value="save_new">Save &amp; New</button>
+        <button class="btn" name="action" value="save">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script id="itemdata" type="application/json">{{ items|tojson }}</script>
+<script id="griddata" type="application/json">{{ grid|tojson }}</script>
+<script>
+(function () {
+  const PRICE = {{ ('cost' if is_p else 'price')|tojson }};
+  const items = JSON.parse(document.getElementById('itemdata').textContent);
+  const byCode = {}; items.forEach(i => byCode[i.code] = i);
+  const body = document.querySelector('#grid tbody');
+  const num = v => { const n = parseFloat(String(v || '').replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+  const fmt = n => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  function addRow(d) {
+    d = d || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><input name="qty" class="r" value="${esc(d.qty)}" inputmode="decimal"></td><td><input name="unit" value="${esc(d.unit)}"></td>
+      <td><input name="code" class="code" list="itemcodes" value="${esc(d.code)}"></td><td><input name="description" value="${esc(d.description)}"></td>
+      <td><input name="price" class="r" value="${esc(d.price)}" inputmode="decimal"></td><td class="amt"></td>
+      <td><button type="button" class="del" tabindex="-1">✕</button></td>`;
+    const code = tr.querySelector('[name=code]');
+    code.addEventListener('change', () => {
+      code.value = code.value.trim().toUpperCase();
+      const it = byCode[code.value];
+      if (it) {
+        tr.querySelector('[name=description]').value = it.desc;
+        tr.querySelector('[name=price]').value = it[PRICE];
+        if (!tr.querySelector('[name=unit]').value) tr.querySelector('[name=unit]').value = it.unit;
+        code.title = it.stock !== '' ? 'In stock: ' + it.stock : '';
+      }
+      recalc();
+    });
+    tr.querySelectorAll('input').forEach(i => {
+      i.addEventListener('input', () => { recalc(); ensure(); });
+      i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (i.name === 'code') i.dispatchEvent(new Event('change'));
+        (tr.nextElementSibling || addRow()).querySelector(`[name=${i.name === 'code' ? 'qty' : i.name}]`).focus(); } });
+    });
+    tr.querySelector('.del').addEventListener('click', () => { tr.remove(); ensure(); recalc(); });
+    body.appendChild(tr); return tr;
+  }
+  const empty = tr => ['qty', 'code', 'description', 'price'].every(n => !tr.querySelector(`[name=${n}]`).value.trim());
+  function ensure() { const rows = [...body.querySelectorAll('tr')]; let b = 0; for (let k = rows.length - 1; k >= 0 && empty(rows[k]); k--) b++; for (; b < 3; b++) addRow(); }
+  function recalc() {
+    let sub = 0;
+    body.querySelectorAll('tr').forEach(tr => {
+      const q = tr.querySelector('[name=qty]').value.trim(), p = tr.querySelector('[name=price]').value.trim();
+      const a = p ? Math.round((q ? num(q) : 1) * num(p) * 100) / 100 : 0;
+      tr.querySelector('.amt').textContent = empty(tr) ? '' : fmt(a); sub += a;
+    });
+    const tax = Math.round(sub * num(document.getElementById('taxrate').value)) / 100;
+    document.getElementById('t_sub').textContent = fmt(sub);
+    document.getElementById('t_tax').textContent = fmt(tax);
+    document.getElementById('t_total').textContent = fmt(sub + tax);
+  }
+  JSON.parse(document.getElementById('griddata').textContent).forEach(addRow); ensure(); recalc();
+  document.getElementById('taxrate').addEventListener('input', recalc);
+  document.querySelectorAll('.qb-fields input, .qb-notes input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); }));
+})();
+</script>
+{% endblock %}

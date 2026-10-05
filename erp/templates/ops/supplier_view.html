@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ s.name }}{% endblock %}
+{% block actions %}
+<details class="tb-menu"><summary class="btn grey">{{ icon('print', 16) }} Statement / print</summary>
+  <div class="menu r">
+    <a target="_blank" href="{{ url_for('sup.supplier_statement_pdf', sid=s.id) }}">{{ icon('pdf', 14) }} All activity · PDF</a>
+    <a target="_blank" href="{{ url_for('sup.supplier_statement_pdf', sid=s.id, mode='period', **{'from': today[:4] ~ '-01-01', 'to': today}) }}">{{ icon('pdf', 14) }} This year · PDF</a>
+    <a target="_blank" href="{{ url_for('sup.supplier_statement_pdf', sid=s.id, mode='open') }}">{{ icon('pdf', 14) }} Unpaid bills only · PDF</a>
+  </div></details>
+<form method="post" action="{{ url_for('sup.supplier_whatsapp', sid=s.id) }}" class="inl">{{ csrf_field() }}
+  <select name="mode" style="width:auto"><option value="all">All activity</option><option value="open">Unpaid bills</option></select>
+  <button class="btn wa" title="Send the statement PDF to {{ s.whatsapp or s.phone or 'the supplier' }}">{{ icon('whatsapp', 16) }} WhatsApp</button></form>
+<a class="btn grey" href="{{ url_for('ops.supplier_form', sid=s.id) }}">Edit</a>{% endblock %}
+{% block content %}
+<div class="stats" style="grid-template-columns:repeat(3,1fr)">
+  <div class="stat s-bad"><div class="k"><span class="chip">{{ icon('wallet', 16) }}</span> We owe</div><div class="v"><small>{{ cur }}</small>{{ bal|money }}</div>
+    <div class="muted">Terms {{ s.terms_days }} days</div></div>
+  <div class="stat"><div class="k"><span class="chip">{{ icon('invoice', 16) }}</span> Bills</div><div class="v">{{ bills|length }}</div>
+    <div class="muted">{{ bills|selectattr('open')|list|length }} unpaid</div></div>
+  <div class="stat"><div class="k"><span class="chip">{{ icon('users', 16) }}</span> Contact</div><div class="v" style="font-size:16px">{{ s.contact or '—' }}</div>
+    <div class="muted">{{ s.phone or s.whatsapp or 'No phone' }}</div></div>
+</div>
+<p><a class="btn" href="{{ url_for('ops.purchase_new', party_id=s.id) }}">{{ icon('plus', 16) }} New bill</a>
+   <a class="btn alt" href="{{ url_for('ops.supplier_payment_new', supplier_id=s.id) }}">{{ icon('send', 16) }} Pay supplier</a></p>
+<div class="grid2">
+  <div class="card"><h3>Bills</h3>
+    <table><tr><th>#</th><th>Date</th><th>Their bill no.</th><th class="n">Total</th><th class="n">Unpaid</th><th></th></tr>
+    {% for b in bills %}<tr><td><a href="{{ url_for('ops.purchase_view', did=b.b.id) }}">{{ b.b.number }}</a></td><td>{{ b.b.date|d }}</td>
+      <td>{{ b.b.bill_no }}</td><td class="n">{{ b.b.total|money }}</td><td class="n">{% if b.open %}<span class="tag open">{{ b.open|money }}</span>{% else %}<span class="tag paid">paid</span>{% endif %}</td>
+      <td class="n"><a target="_blank" href="{{ url_for('sup.purchase_pdf', did=b.b.id) }}" title="Print / PDF">{{ icon('pdf', 14) }}</a></td></tr>
+    {% else %}<tr><td colspan="6" class="muted">No bills.</td></tr>{% endfor %}
+    {% if opening_left %}<tr><td colspan="4">Unpaid opening balance</td><td class="n">{{ opening_left|money }}</td><td></td></tr>{% endif %}
+    {% if advance %}<tr><td colspan="4">Advance paid</td><td class="n">-{{ advance|money }}</td><td></td></tr>{% endif %}
+    </table></div>
+  <div class="card"><h3>Payments made</h3>
+    <table><tr><th>#</th><th>Date</th><th>Method</th><th class="n">Amount</th><th></th></tr>
+    {% for p in pays %}<tr class="{{ 'voided' if p.void }}"><td>{{ p.number }}</td><td>{{ p.date|d }}</td><td>{{ p.method }} {{ p.reference }}</td><td class="n">{{ p.amount|money }}</td>
+      <td class="n nowrap"><a target="_blank" href="{{ url_for('sup.supplier_payment_pdf', yid=p.id) }}" title="Payment advice PDF">{{ icon('pdf', 14) }}</a>
+        {% if not p.void %}<form method="post" action="{{ url_for('sup.supplier_payment_whatsapp', yid=p.id) }}" class="inl">{{ csrf_field() }}<button class="link" title="Send payment advice on WhatsApp" style="color:var(--wa)">{{ icon('whatsapp', 14) }}</button></form>
+        <form method="post" action="{{ url_for('ops.supplier_payment_void', yid=p.id) }}" class="inl" onsubmit="return confirm('Void this payment?')">{{ csrf_field() }}<input type="hidden" name="reason" value="voided from supplier page"><button class="link">void</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">No payments.</td></tr>{% endfor %}</table></div>
+</div>
+{% endblock %}

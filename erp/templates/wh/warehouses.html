@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Warehouses{% endblock %}
+{% block content %}
+<div class="dash" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+  {% for r in rows %}
+  <div class="card wh-card {{ 'off' if not r.w.active }}">
+    {% if edit == r.w.id %}
+    <form method="post">{{ csrf_field() }}<input type="hidden" name="id" value="{{ r.w.id }}">
+      <label>Code<input name="code" value="{{ r.w.code }}" required maxlength="10"></label>
+      <label>Name<input name="name" value="{{ r.w.name }}" required></label>
+      <label>Address<input name="address" value="{{ r.w.address }}"></label>
+      <label class="check"><input type="checkbox" name="is_default" value="1" {{ 'checked' if r.w.is_default }}> Default warehouse</label>
+      <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if r.w.active }}> Active</label>
+      <button class="btn small">Save</button> <a href="{{ url_for('wh.warehouses') }}">Cancel</a>
+    </form>
+    {% else %}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div><span class="dtag d-grn">{{ r.w.code }}</span>{% if r.w.is_default %} <span class="tag paid">default</span>{% endif %}{% if not r.w.active %} <span class="tag void">inactive</span>{% endif %}
+        <h3 style="margin:10px 0 2px">{{ r.w.name }}</h3><div class="muted">{{ r.w.address or 'No address' }}</div></div>
+      <a class="btn light small" href="?edit={{ r.w.id }}">Edit</a>
+    </div>
+    <div class="wh-nums"><div><b>{{ r['items'] }}</b><span>items</span></div><div><b>{{ '{:,.0f}'.format(r.units) }}</b><span>units</span></div>
+      <div><b>{{ '{:,.0f}'.format(r['value']/100) }}</b><span>value</span></div></div>
+    <a href="{{ url_for('wh.home', w=r.w.id) }}">View stock →</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <form method="post" class="card wh-card">
+    {{ csrf_field() }}
+    <h3>{{ icon('plus', 16) }} Add warehouse</h3>
+    <label>Code<input name="code" required maxlength="10" placeholder="e.g. SHOP, GODOWN2"></label>
+    <label>Name<input name="name" required placeholder="e.g. Urdu Bazar shop"></label>
+    <label>Address<input name="address"></label>
+    <input type="hidden" name="active" value="1">
+    <button class="btn small">Add warehouse</button>
+  </form>
+</div>
+{% endblock %}

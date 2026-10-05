@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Salary{% endblock %}
+{% block actions %}<a class="btn grey" href="{{ url_for('hr.employee_form') }}">{{ icon('plus', 16) }} Add employee</a>{% endblock %}
+{% block content %}
+<div class="stats">
+  <div class="stat"><div class="k"><span class="chip">{{ icon('users', 16) }}</span> Active employees</div><div class="v">{{ emp_count }}</div>
+    <div class="muted"><a href="{{ url_for('hr.employees') }}">Employee list</a></div></div>
+  <div class="stat"><div class="k"><span class="chip">{{ icon('cash', 16) }}</span> Monthly salary bill</div><div class="v"><small>{{ cur }}</small>{{ monthly|money }}</div>
+    <div class="muted">Basic + allowances, before absents</div></div>
+  <div class="stat s-bad"><div class="k"><span class="chip">{{ icon('wallet', 16) }}</span> Advances & loans due</div><div class="v"><small>{{ cur }}</small>{{ outstanding|money }}</div>
+    <div class="muted"><a href="{{ url_for('hr.advances') }}">Advances</a> · recovered from salary</div></div>
+  <div class="stat s-ok"><div class="k"><span class="chip">{{ icon('calendar', 16) }}</span> Make salary sheet</div>
+    <form method="post" action="{{ url_for('hr.sheet_create') }}" class="rowform" style="margin-top:8px">{{ csrf_field() }}
+      <input type="month" name="month" value="{{ suggest }}" required style="width:150px"><button class="btn small">Open</button></form>
+    <div class="muted">Opens it if it already exists</div></div>
+</div>
+<div class="card">
+  <h3>Salary sheets</h3>
+  <div class="tablewrap"><table>
+  <tr><th>Month</th><th>Status</th><th class="n">Employees</th><th class="n">Gross salary</th><th class="n">Loans &amp; advances recovered</th><th class="n">Net pay</th><th class="n">Paid</th><th class="n">Unpaid</th><th></th></tr>
+  {% for r in runs %}<tr>
+    <td><a href="{{ url_for('hr.sheet', month=r.month) }}"><b>{{ month_label(r.month) }}</b></a></td>
+    <td>{% if r.status == 'final' %}{% if r.paid >= r.net %}<span class="tag paid">paid</span>{% else %}<span class="tag open">final</span>{% endif %}{% else %}<span class="tag">draft</span>{% endif %}</td>
+    <td class="n">{{ r.n }}</td><td class="n">{{ r.gross|money }}</td><td class="n">{{ r.adv|money }}</td><td class="n"><b>{{ r.net|money }}</b></td>
+    <td class="n">{{ r.paid|money }}</td><td class="n {{ 'neg' if r.net - r.paid > 0 }}">{{ (r.net - r.paid)|money }}</td>
+    <td class="n nowrap"><a href="{{ url_for('hr.sheet', month=r.month) }}">Open</a>{% if r.status == 'final' %} · <a target="_blank" href="{{ url_for('hr.slips_pdf', month=r.month) }}">Payslips</a>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="9" class="muted">No salary sheets yet. {% if not emp_count %}<a href="{{ url_for('hr.employee_form') }}">Add your employees</a> first, then make the sheet for a month.{% else %}Pick a month above and click Open.{% endif %}</td></tr>{% endfor %}
+  </table></div>
+</div>
+<div class="card muted" style="font-size:13px">
+  <b>How it works:</b> 1) Add employees with their monthly salary. 2) Record advances or loans when you give them (with a monthly deduction).
+  3) Each month open the salary sheet, enter absents, overtime hours and bonuses, then <b>Finalise</b>.
+  4) Mark salaries paid, print payslips or send them on WhatsApp. Finalised salaries appear in Profit &amp; loss automatically,
+  so don't also enter salaries under Expenses. <a href="{{ url_for('hr.report') }}">Salary register report</a>
+</div>
+{% endblock %}

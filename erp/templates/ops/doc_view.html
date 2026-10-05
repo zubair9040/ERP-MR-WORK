@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_voidreq.html" import void_banner with context %}
+{% set is_p = kind == 'purchase' %}
+{% block title %}{{ ('Purchase bill #' if is_p else 'Credit note #') ~ doc.number }}{% endblock %}
+{% block actions %}
+  {% if not is_p %}<a class="btn grey" target="_blank" href="{{ url_for('ops.credit_pdf', did=doc.id) }}">{{ icon('pdf', 16) }} PDF</a>
+  {% else %}<a class="btn grey" target="_blank" href="{{ url_for('sup.purchase_pdf', did=doc.id) }}">{{ icon('print', 16) }} Print / PDF</a>
+  <a class="btn light" target="_blank" href="{{ url_for('sup.supplier_statement_pdf', sid=doc.supplier_id) }}">{{ icon('pdf', 16) }} Supplier statement</a>{% endif %}
+  {% if not doc.void and can('purchases.edit' if is_p else 'returns.create') %}<a class="btn grey" href="{{ url_for('ops.purchase_edit' if is_p else 'ops.credit_edit', did=doc.id) }}">Edit</a>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <dl class="kv">
+      <dt>{{ 'Supplier' if is_p else 'Customer' }}</dt><dd><a href="{{ url_for('ops.supplier_view', sid=doc.supplier_id) if is_p else url_for('sales.customer_view', cid=doc.customer_id) }}"><b>{{ doc.party }}</b></a>
+        {% if doc.void %} <span class="tag void">VOID</span>{% endif %}</dd>
+      <dt>Date</dt><dd>{{ doc.date|d }}</dd>
+      {% if is_p %}<dt>Their bill no.</dt><dd>{{ doc.bill_no or '—' }}</dd><dt>Due</dt><dd>{{ doc.due_date|d }}</dd>
+        <dt>Status</dt><dd>{% if doc.void %}—{% elif open_amt %}<span class="tag open">{{ open_amt|money }} unpaid</span>{% else %}<span class="tag paid">Paid</span>{% endif %}</dd>
+      {% else %}<dt>Against invoice</dt><dd>{{ doc.invoice_ref or '—' }}</dd>{% endif %}
+      <dt>Total</dt><dd><b style="font-size:18px">{{ cur }} {{ doc.total|money }}</b></dd>
+    </dl>
+  </div>
+  <div class="card">
+    {% if is_p and not doc.void %}<p><a class="btn alt" href="{{ url_for('ops.supplier_payment_new', supplier_id=doc.supplier_id) }}">{{ icon('send', 16) }} Pay this supplier</a>
+      <a class="btn grey" href="{{ url_for('wh.doc_new', dtype='GRN', purchase=doc.id) }}">{{ icon('download', 16) }} Receive into warehouse</a></p>
+      {% if receipts %}<p class="muted">Received: {% for r in receipts %}<a href="{{ url_for('wh.doc_view', did=r.id) }}">GRN-{{ '%05d'|format(r.number) }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}{% endif %}
+    {% if doc.notes %}<p style="white-space:pre-line" class="muted">{{ doc.notes }}</p>{% endif %}
+    {% if not doc.void and can('purchases.edit' if is_p else 'returns.void') %}{% call(vp) void_banner('credit' if not is_p else 'none', doc.id) %}{% if not vp %}
+    <form method="post" action="{{ url_for('ops.purchase_void' if is_p else 'ops.credit_void', did=doc.id) }}" class="rowform" onsubmit="return confirm('Void this document?')">
+      {{ csrf_field() }}<input name="reason" placeholder="Reason for voiding" required style="width:240px"><button class="btn bad small">{{ 'Void' if is_p or can('approve.voids') else 'Request void (admin approves)' }}</button></form>{% endif %}{% endcall %}{% endif %}
+  </div>
+</div>
+<div class="card">
+  <table><tr><th class="n">Qty</th><th>U/M</th><th>Item code</th><th>Description</th><th class="n">{{ 'Cost' if is_p else 'Rate' }}</th><th class="n">Amount</th></tr>
+  {% for l in lines %}<tr><td class="n">{{ '' if l.qty is none else '%g'|format(l.qty) }}</td><td>{{ l.unit }}</td><td><b>{{ l.code }}</b></td><td>{{ l.description }}</td>
+    <td class="n">{{ l.rate|money }}</td><td class="n">{{ l.amount|money }}</td></tr>{% endfor %}</table>
+  <table class="totals">{% if doc.tax %}<tr><td>Tax {{ '%g'|format(doc.tax_rate) }}%</td><td class="n">{{ doc.tax|money }}</td></tr>{% endif %}
+    <tr class="total"><td>Total {{ cur }}</td><td class="n">{{ doc.total|money }}</td></tr></table>
+</div>
+{% endblock %}

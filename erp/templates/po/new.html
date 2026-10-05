@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}New PO{% endblock %}
+{% block content %}
+<form method="post" class="card" style="max-width:720px">
+  {{ csrf_field() }}
+  <div class="form2">
+    <label>Head-office customer<select name="customer_id" required><option value="">— choose —</option>
+      {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if f.customer_id|string == c.id|string }}>{{ c.name }}</option>{% endfor %}</select></label>
+    <label>Customer's PO no.<input name="po_no" value="{{ f.po_no or '' }}" required></label>
+    <label>PO date<input type="date" name="date" value="{{ f.date or today }}"></label>
+    <label>Note (printed on the combined invoice)<input name="notes" value="{{ f.notes or '' }}"></label>
+  </div>
+  <p class="muted">Next you'll make an invoice for each branch. The branches come from the customer's page (tab "Branches").</p>
+  <button class="btn">Create PO</button> <a href="{{ url_for('po.index') }}">Cancel</a>
+</form>
+{% endblock %}

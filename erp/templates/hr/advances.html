@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Advances &amp; loans{% endblock %}
+{% block content %}
+<div class="grid2" style="grid-template-columns:1fr 2fr">
+  <form method="post" class="card">
+    {{ csrf_field() }}
+    <h3>{{ icon('plus', 16) }} Give advance / loan</h3>
+    <label>Employee<select name="employee_id" required><option value="">Choose…</option>{% for e in emps %}<option value="{{ e.id }}">{{ e.code }} · {{ e.name }}</option>{% endfor %}</select></label>
+    <div class="form2"><label>Type<select name="kind"><option value="Advance">Advance (small)</option><option value="Loan">Loan (big, monthly instalments)</option></select></label>
+      <label>Date<input type="date" name="date" value="{{ today }}"></label></div>
+    <label>Amount given<input name="amount" required inputmode="decimal"></label>
+    <label>Deduct each month<input name="installment" inputmode="decimal" placeholder="Blank = deduct all from next salary"></label>
+    <div class="form2"><label>Paid by<select name="method">{% for x in methods %}<option>{{ x }}</option>{% endfor %}</select></label>
+      <label>Note<input name="notes"></label></div>
+    <button class="btn wide">Save</button>
+  </form>
+  <div class="card">
+    <h3 style="justify-content:space-between">Still to recover <span>
+      <a class="btn light small" href="?export=xlsx">{{ icon('excel', 14) }} Excel</a> <a class="btn light small" target="_blank" href="?export=pdf">{{ icon('pdf', 14) }} PDF</a></span></h3>
+    <div class="tablewrap"><table>
+    <tr><th>Employee</th><th class="n">Loan</th><th class="n">Advance</th><th class="n">Total due</th><th class="n">Next salary deduction</th></tr>
+    {% for r in owing %}<tr><td><a href="{{ url_for('hr.employee_view', eid=r.e.id) }}">{{ r.e.name }}</a> <span class="muted">{{ r.e.code }}</span></td>
+      <td class="n">{{ r.loan|money if r.loan else '' }}</td><td class="n">{{ r.adv|money if r.adv else '' }}</td>
+      <td class="n"><b>{{ r.bal|money }}</b></td><td class="n">{{ r.next|money }}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Nobody owes a loan or advance.</td></tr>{% endfor %}
+    <tr class="total"><td>{{ owing|length }} employees</td><td class="n">{{ owing|sum(attribute='loan')|money }}</td><td class="n">{{ owing|sum(attribute='adv')|money }}</td>
+      <td class="n">{{ cur }} {{ owing|sum(attribute='bal')|money }}</td><td class="n">{{ owing|sum(attribute='next')|money }}</td></tr>
+    </table></div>
+  </div>
+</div>
+<div class="card">
+  <form class="filters">
+    <label>From<input type="date" name="from" value="{{ start }}"></label><label>To<input type="date" name="to" value="{{ end }}"></label>
+    <button class="btn grey">Show</button></form>
+  <div class="tablewrap"><table>
+  <tr><th>Date</th><th>Employee</th><th>Type</th><th class="n">Amount</th><th class="n">Per month</th><th>Paid by / note</th><th></th></tr>
+  {% for a in rows %}<tr class="{{ 'voided' if a.void }}"><td>{{ a.date|d }}</td><td><a href="{{ url_for('hr.employee_view', eid=a.employee_id) }}">{{ a.name }}</a></td><td>{{ a.kind }}</td>
+    <td class="n">{{ a.amount|money }}</td><td class="n">{{ a.installment|money if a.installment else 'all' }}</td><td class="muted">{{ a.method }} {{ a.notes }}</td>
+    <td class="n">{% if not a.void %}<form method="post" action="{{ url_for('hr.advance_void', aid=a.id) }}" class="inl" onsubmit="return confirm('Void this advance?')">{{ csrf_field() }}<button class="link">void</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="muted">No advances in this period.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

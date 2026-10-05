@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="hello">
+  <div><h2>{{ greet }}, {{ g.user.name.split()[0] }} 👋</h2><p>Here's how {{ cur_company().name if cur_company() else S.company_name }} is doing today.</p></div>
+  <span class="muted">{{ today|d }}</span>
+</div>
+
+<div class="period">
+  <div class="seg">{% for k, v in periods %}<a href="?p={{ k }}" class="{{ 'on' if period == k }}">{{ v }}</a>{% endfor %}</div>
+  <form><input type="date" name="from" value="{{ start }}"> <span class="muted">→</span> <input type="date" name="to" value="{{ end }}">
+    <button class="btn small">Load</button></form>
+  <span class="muted" style="font-size:13px">{{ start|d }} to {{ end|d }}</span>
+</div>
+
+{% macro dl(v) %}{% if v is not none %}<span class="delta {{ 'up' if v >= 0 else 'down' }}">{{ '▲' if v >= 0 else '▼' }} {{ v|abs }}%</span>{% endif %}{% endmacro %}
+<div class="sec-h">Summary · selected period</div>
+<div class="stats s6">
+  <div class="stat">
+    <div class="k"><span class="chip">{{ icon('trend', 16) }}</span> Sales</div>
+    <div class="v"><small>{{ cur }}</small>{{ sales.s|money }}</div>
+    <div class="muted">{{ sales.n }} invoices {{ dl(sales_delta) }}</div>
+  </div>
+  <div class="stat s-ok">
+    <div class="k"><span class="chip">{{ icon('cash', 16) }}</span> Collected</div>
+    <div class="v"><small>{{ cur }}</small>{{ received.s|money }}</div>
+    <div class="muted">{{ received.n }} payments {{ dl(recv_delta) }}</div>
+  </div>
+  {% if K %}
+  <div class="stat {{ 's-ok' if K.pnl.net >= 0 else 's-bad' }}">
+    <div class="k"><span class="chip">{{ icon('chart', 16) }}</span> Net profit</div>
+    <div class="v"><small>{{ cur }}</small>{{ K.pnl.net|money }}</div>
+    <div class="muted">Gross profit {{ K.pnl.gross|money }} · <a href="{{ url_for('reports.profit_loss', **{'from': start, 'to': end}) }}">P&amp;L</a></div>
+  </div>
+  <div class="stat">
+    <div class="k"><span class="chip">{{ icon('invoice', 16) }}</span> Purchases</div>
+    <div class="v"><small>{{ cur }}</small>{{ K.purchases.s|money }}</div>
+    <div class="muted">{{ K.purchases.n }} bills · <a href="{{ url_for('ops.purchases') }}">Purchase bills</a></div>
+  </div>
+  <div class="stat s-bad">
+    <div class="k"><span class="chip">{{ icon('wallet', 16) }}</span> Expenses</div>
+    <div class="v"><small>{{ cur }}</small>{{ K.expenses|money }}</div>
+    <div class="muted">{% if K.salaries %}incl. salaries {{ K.salaries|money }}{% else %}<a href="{{ url_for('ops.expenses') }}">Expenses</a>{% endif %}</div>
+  </div>
+  <div class="stat {{ 's-ok' if K.flow >= 0 else 's-bad' }}">
+    <div class="k"><span class="chip">{{ icon('layers', 16) }}</span> Cash in − cash out</div>
+    <div class="v"><small>{{ cur }}</small>{{ K.flow|money }}</div>
+    <div class="muted">In {{ K.cash_in|money }} · out {{ K.cash_out|money }}</div>
+  </div>
+  {% endif %}
+  <div class="stat">
+    <div class="k"><span class="chip">{{ icon('users', 16) }}</span> Receivable <span class="muted">today</span></div>
+    <div class="v"><small>{{ cur }}</small>{{ receivable|money }}</div>
+    <div class="muted">{{ customers_count }} customers · {{ overdue|money }} overdue · <a href="{{ url_for('reports.aging') }}">Aging</a></div>
+  </div>
+  {% if K %}
+  <div class="stat">
+    <div class="k"><span class="chip">{{ icon('truck', 16) }}</span> Payable <span class="muted">today</span></div>
+    <div class="v"><small>{{ cur }}</small>{{ K.payable|money }}</div>
+    <div class="muted">What you owe suppliers · <a href="{{ url_for('reports.payables') }}">Payables</a></div>
+  </div>
+  {% else %}
+  <div class="stat s-bad">
+    <div class="k"><span class="chip">{{ icon('alert', 16) }}</span> Overdue</div>
+    <div class="v"><small>{{ cur }}</small>{{ overdue|money }}</div>
+    <div class="muted"><a href="{{ url_for('reports.collections') }}">Collections</a></div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="sec-h">Needs attention</div>
+<div class="attn">
+  {% for a in attention %}<a href="{{ a.url }}" class="{{ a.cls }}">{{ icon(a.icon, 20) }}<span>{{ a.title }}<small>{{ a.sub }}</small></span><span class="cnt"><b>{{ a.n }}</b></span></a>
+  {% else %}<a class="ok">{{ icon('check', 20) }}<span>All clear<small>Nothing needs attention right now</small></span></a>{% endfor %}
+</div>
+
+<div class="sec-h">Quick actions</div>
+<div class="qa">
+  {% if can('invoices.create') %}<a href="{{ url_for('sales.invoice_new') }}"><span class="ic c1">{{ icon('invoice', 18) }}</span>Sale invoice</a>{% endif %}
+  {% if can('payments.create') %}<a href="{{ url_for('sales.payment_new') }}"><span class="ic c2">{{ icon('cash', 18) }}</span>Collection</a>{% endif %}
+  {% if can('warehouse.work') %}<a href="{{ url_for('wh.doc_new', dtype='DC') }}"><span class="ic c3">{{ icon('truck', 18) }}</span>Goods issue (GIN)</a>
+  <a href="{{ url_for('wh.doc_new', dtype='GRN') }}"><span class="ic c7">{{ icon('download', 18) }}</span>Goods receipt</a>{% endif %}
+  {% if can('purchases.create') %}<a href="{{ url_for('ops.purchase_new') }}"><span class="ic c5">{{ icon('invoice', 18) }}</span>Purchase bill</a>{% endif %}
+  {% if can('supplier_payments.create') %}<a href="{{ url_for('ops.supplier_payment_new') }}"><span class="ic c4">{{ icon('send', 18) }}</span>Pay supplier</a>{% endif %}
+  {% if can('expenses.create') %}<a href="{{ url_for('ops.expenses') }}"><span class="ic c6">{{ icon('wallet', 18) }}</span>Expense</a>{% endif %}
+  {% if can('returns.create') %}<a href="{{ url_for('ops.credit_new') }}"><span class="ic c6">{{ icon('return', 18) }}</span>Sales return</a>{% endif %}
+  {% if hr_allowed() %}<a href="{{ url_for('hr.home') }}"><span class="ic c8">{{ icon('users', 18) }}</span>Salary</a>{% endif %}
+  {% if can('statements.send') %}<a href="{{ url_for('reports.month_end') }}"><span class="ic c2">{{ icon('whatsapp', 18) }}</span>Month-end statements</a>{% endif %}
+  {% if can('reports.sales') or can('reports.finance') %}<a href="{{ url_for('reports.index') }}"><span class="ic c4">{{ icon('chart', 18) }}</span>Reports</a>{% endif %}
+  {% if is_rep() %}<a href="{{ url_for('sales.customers') }}"><span class="ic c4">{{ icon('users', 18) }}</span>My customers</a>{% endif %}
+</div>
+
+<div class="dash">
+  <div class="card">
+    <h3 style="justify-content:space-between">Sales vs collections · last 6 months <span class="chart-legend"><span><i style="background:var(--accent)"></i>Sales</span><span><i style="background:var(--ok)"></i>Collected</span></span></h3>
+    {% set W, H, pad = 640, 220, 26 %}
+    {% set slot = (W - pad) / series|length %}
+    <svg class="bars" viewBox="0 0 {{ W }} {{ H + 24 }}" width="100%" role="img" aria-label="Sales and collections for the last six months">
+      {% for k in range(5) %}{% set y = H - (H - 10) * k / 4 %}
+        <line x1="{{ pad }}" x2="{{ W }}" y1="{{ y }}" y2="{{ y }}" stroke="var(--line)" stroke-dasharray="{{ '0' if k == 0 else '3 4' }}"/>
+      {% endfor %}
+      {% for s in series %}
+        {% set x = pad + slot * loop.index0 + slot * 0.18 %}{% set bw = slot * 0.3 %}
+        {% set h1 = (H - 10) * s.sales / peak %}{% set h2 = (H - 10) * s.paid / peak %}
+        <rect x="{{ x }}" y="{{ H - h1 }}" width="{{ bw }}" height="{{ h1 }}" rx="5" fill="var(--accent)"><title>{{ s.label }} sales: {{ s.sales|money }}</title></rect>
+        <rect x="{{ x + bw + 5 }}" y="{{ H - h2 }}" width="{{ bw }}" height="{{ h2 }}" rx="5" fill="var(--ok)"><title>{{ s.label }} collected: {{ s.paid|money }}</title></rect>
+        <text x="{{ x + bw + 2 }}" y="{{ H + 18 }}" text-anchor="middle">{{ s.label }}</text>
+      {% endfor %}
+    </svg>
+  </div>
+  <div class="card">
+    <h3>Receivable by age <span class="muted" style="font-weight:400;font-size:12px">· days since invoice</span></h3>
+    {% set tot = buckets.values()|sum %}
+    {% for k, v in buckets.items() %}
+      <div class="list-item" style="padding:7px 0">
+        <div class="grow"><b style="font-weight:500">{{ k }} days</b>
+          <div class="bar-mini"><span style="width:{{ ((v * 100 / tot) if tot > 0 and v > 0 else 0)|round(1) }}%;{{ 'background:var(--bad)' if k in ('91-180', '180+') else ('background:var(--warn)' if k == '61-90' else '') }}"></span></div></div>
+        <div class="n" style="font-weight:600">{{ v|money }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="dash" style="grid-template-columns:1fr 1fr 1fr">
+  <div class="card">
+    <h3>Highest balances</h3>
+    {% for c in top %}
+    <div class="list-item"><span class="av">{{ c.name|initials }}</span>
+      <div class="grow"><b><a href="{{ url_for('sales.customer_view', cid=c.id) }}" style="color:inherit">{{ c.name }}</a></b><small>{{ c.rep_code or 'No rep' }}</small></div>
+      <div class="n" style="font-weight:650">{{ c.balance|money }}</div></div>
+    {% else %}<p class="muted">No outstanding balances.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h3>Recent invoices</h3>
+    {% for i in recent %}
+    <div class="list-item"><span class="av">{{ icon('invoice', 16) }}</span>
+      <div class="grow"><b><a href="{{ url_for('sales.invoice_view', iid=i.id) }}" style="color:inherit">#{{ i.number }} · {{ i.customer }}</a></b><small>{{ i.date|d }}</small></div>
+      <div class="n" style="font-weight:600">{{ i.total|money }}</div></div>
+    {% else %}<p class="muted">No invoices yet.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h3>Recent payments</h3>
+    {% for p in recent_pay %}
+    <div class="list-item"><span class="av" style="background:var(--ok-soft);color:var(--ok-ink)">{{ icon('cash', 16) }}</span>
+      <div class="grow"><b><a href="{{ url_for('sales.payment_view', pid=p.id) }}" style="color:inherit">{{ p.customer }}</a></b><small>{{ p.date|d }} · {{ p.method }}</small></div>
+      <div class="n" style="font-weight:600;color:var(--ok-ink)">+{{ p.amount|money }}</div></div>
+    {% else %}<p class="muted">No payments yet.</p>{% endfor %}
+  </div>
+</div>
+{% endblock %}

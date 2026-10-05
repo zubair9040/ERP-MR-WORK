@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Returns (credit notes){% endblock %}
+{% block actions %}{% if can('returns.create') %}<a class="btn grey" href="{{ url_for('ops.credit_new') }}">{{ icon('plus', 16) }} New return</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters">
+  {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+</form>
+<div class="tablewrap"><table>
+<tr><th>#</th><th>Date</th><th>Customer</th><th>Against invoice</th><th class="n">Credit</th></tr>
+{% for r in rows %}<tr class="{{ 'voided' if r.void }}"><td><a href="{{ url_for('ops.credit_view', did=r.id) }}">{{ r.number }}</a></td><td>{{ r.date|d }}</td>
+  <td>{{ r.customer }}</td><td>{{ r.invoice_ref }}</td><td class="n">{{ r.total|money }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No returns yet.</td></tr>{% endfor %}
+<tr class="total"><td colspan="4">{{ rows|length }} credit notes</td><td class="n">{{ cur }} {{ total|money }}</td></tr>
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Roles &amp; permissions{% endblock %}
+{% block actions %}<a class="btn light" href="{{ url_for('core.users') }}">{{ icon('users', 16) }} Users</a><a class="btn grey" href="{{ url_for('core.role_form') }}">+ New role</a>{% endblock %}
+{% block content %}
+<div class="roles">
+  <div class="card roles-list">
+    <div class="rl-h">Roles</div>
+    {% for r in rows %}
+    <a href="{{ url_for('core.roles', id=r.id) }}" class="{{ 'on' if cur and cur.id == r.id }}"><span>{{ r.name }}</span>
+      {% if counts.get(r.id) %}<small>{{ counts[r.id] }}</small>{% endif %}</a>
+    {% endfor %}
+  </div>
+  {% if cur %}
+  <div class="roles-main">
+    <div class="card">
+      <div class="rm-head">
+        <div><h2>{{ cur.name }}</h2>{% if cur.builtin %}<span class="tag">Ready-made</span>{% else %}<span class="tag paid">Custom</span>{% endif %}</div>
+        <div class="rm-btns">
+          <a class="btn light small" href="{{ url_for('core.role_form', rid=cur.id) }}">{{ icon('edit', 14) }} Edit</a>
+          <a class="btn light small" href="{{ url_for('core.role_form', copy=cur.id) }}">{{ icon('layers', 14) }} Duplicate</a>
+          {% if cur.name != 'Admin' %}<form method="post" action="{{ url_for('core.role_delete', rid=cur.id) }}" onsubmit="return confirm('Delete the role {{ cur.name }}?')">{{ csrf_field() }}<button class="btn light small bad-t">Delete</button></form>{% endif %}
+        </div>
+      </div>
+      <p class="muted">{{ cur.description or 'No description.' }}</p>
+      <div class="rm-users"><b>Users with this role:</b>
+        {% for u in users %}<span class="role-pill {{ '' if u.active else 'off' }}">{{ u.name }} <small>{{ u.username }}</small></span>{% else %}<span class="muted">nobody yet</span>{% endfor %}</div>
+    </div>
+    <div class="card">
+      <h3>What this role can do</h3>
+      <div class="perm-grid view">
+        {% for area, ps in areas %}
+        <div class="perm-area"><b>{{ area }}</b>
+          {% for k, label in ps %}<span class="perm {{ 'yes' if k in perms else 'no' }}">{{ icon('check' if k in perms else 'x', 14) }} {{ label }}</span>{% endfor %}
+        </div>{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

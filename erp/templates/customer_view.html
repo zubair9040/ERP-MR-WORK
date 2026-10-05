@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }}{% endblock %}
+{% block actions %}{% if can('customers.edit') %}<a class="btn grey" href="{{ url_for('sales.customer_form', cid=c.id) }}">Edit</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <dl class="kv">
+      <dt>Balance</dt><dd><b style="font-size:18px">{{ cur }} {{ bal|money }}</b>
+        {% if c.credit_limit %}<span class="muted"> · limit {{ c.credit_limit|money }}</span>{% endif %}</dd>
+      <dt>WhatsApp</dt><dd>{{ c.whatsapp or '—' }}</dd>
+      <dt>Email</dt><dd>{{ c.email or '—' }}{% if c.send_by and c.send_by != 'whatsapp' %} <span class="tag">sends by {{ 'email' if c.send_by == 'email' else 'WhatsApp + email' }}</span>{% endif %}</dd>
+      {% if c.phone %}<dt>Phone</dt><dd>{{ c.phone }}</dd>{% endif %}
+      {% if c.contact %}<dt>Contact</dt><dd>{{ c.contact }}</dd>{% endif %}
+      <dt>Rep</dt><dd>{{ rep.code ~ ' · ' ~ rep.name if rep else '—' }}</dd>
+      <dt>Terms</dt><dd>{{ c.terms_days }} days</dd>
+      {% if c.address %}<dt>Address</dt><dd style="white-space:pre-line">{{ c.address }}</dd>{% endif %}
+      {% if c.notes %}<dt>Notes</dt><dd style="white-space:pre-line">{{ c.notes }}</dd>{% endif %}
+    </dl>
+    <p style="margin-top:14px"><a class="btn" href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">New invoice</a>
+      <a class="btn alt" href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Collection</a></p>
+  </div>
+  <div class="card">
+    <h3>Statement &amp; balance</h3>
+    <form method="post" action="{{ url_for('sales.statement_send', cid=c.id) }}" id="stform">
+      {{ csrf_field() }}
+      <div class="optbox-label">Type</div>
+      <div class="optboxes">
+        <label class="optbox"><input type="radio" name="mode" value="period" {{ 'checked' if c.statement_mode != 'open' }}>
+          <b>All activity</b><span>Invoices + payments for the period, with balance forward</span></label>
+        <label class="optbox"><input type="radio" name="mode" value="open" {{ 'checked' if c.statement_mode == 'open' }}>
+          <b>Unpaid bills only</b><span>Only invoices not yet paid (corporate)</span></label>
+        <label class="optbox"><input type="radio" name="mode" value="balance">
+          <b>Balance only</b><span>Short WhatsApp message with the balance</span></label>
+      </div>
+      <div class="optrow" id="periodrow">
+        <label>From<input type="date" name="from" value="{{ st.start }}"></label>
+        <label>To / as of<input type="date" name="to" value="{{ st.end }}"></label>
+        <span class="muted presets">{% for label, a, b in presets %}<a href="#" data-a="{{ a }}" data-b="{{ b }}">{{ label }}</a>{{ ' · ' if not loop.last }}{% endfor %}</span>
+      </div>
+      <div class="optrow" id="optsrow">
+        <input type="hidden" name="aging" value="0"><label class="check"><input type="checkbox" name="aging" value="1" checked> Aging boxes (Current, 1-30 … over 90)</label>
+        <label class="check"><input type="checkbox" name="details" value="1"> Item details of each invoice</label>
+      </div>
+      <div class="optrow">
+        <label>WhatsApp number<input name="phone" value="{{ wa }}" placeholder="923001234567"></label>
+        <label>Email<input name="email" value="{{ c.email or '' }}" placeholder="accounts@client.com"></label>
+      </div>
+      <div class="optrow">
+        <a class="btn grey" target="_blank" id="st_pdf" href="#">{{ icon('pdf', 16) }} PDF</a>
+        <a class="btn grey" id="st_xlsx" href="#">{{ icon('excel', 16) }} Excel</a>
+        <button class="btn wa" name="channel" value="whatsapp" {{ 'disabled title="No WhatsApp number"' if not wa }}>{{ icon('whatsapp', 16) }} Send on WhatsApp</button>
+        <button class="btn" name="channel" value="email">{{ icon('send', 16) }} Send by email</button>
+        <button type="button" class="btn light" id="st_show">Show on screen</button>
+      </div>
+    </form>
+    <script>
+    (function () {
+      const f = document.getElementById('stform');
+      const base = {pdf: "{{ url_for('sales.statement_pdf', cid=c.id) }}", xlsx: "{{ url_for('sales.statement_xlsx', cid=c.id) }}"};
+      function params() {
+        const p = new URLSearchParams();
+        p.set('mode', f.querySelector('[name=mode]:checked').value);
+        p.set('from', f.querySelector('[name=from]').value); p.set('to', f.querySelector('[name=to]').value);
+        p.set('aging', f.querySelector('[name=aging][type=checkbox]').checked ? '1' : '0');
+        if (f.querySelector('[name=details]').checked) p.set('details', '1');
+        return p;
+      }
+      function refresh() {
+        const m = f.querySelector('[name=mode]:checked').value;
+        document.getElementById('st_pdf').href = base.pdf + '?' + params();
+        document.getElementById('st_xlsx').href = base.xlsx + '?' + params();
+        ['st_pdf', 'st_xlsx'].forEach(id => document.getElementById(id).classList.toggle('off', m === 'balance'));
+        document.getElementById('optsrow').style.display = m === 'balance' ? 'none' : '';
+        document.querySelector('#periodrow label').style.display = m === 'period' ? '' : 'none';
+        document.querySelector('#periodrow .presets').style.display = m === 'period' ? '' : 'none';
+        f.querySelectorAll('.optbox').forEach(b => b.classList.toggle('on', b.querySelector('input').checked));
+      }
+      f.addEventListener('change', refresh); f.addEventListener('input', refresh);
+      f.querySelectorAll('.presets a').forEach(a => a.addEventListener('click', e => {
+        e.preventDefault(); f.querySelector('[name=from]').value = a.dataset.a; f.querySelector('[name=to]').value = a.dataset.b; refresh(); }));
+      document.getElementById('st_show').addEventListener('click', () => {
+        location.href = '?from=' + f.querySelector('[name=from]').value + '&to=' + f.querySelector('[name=to]').value + '#activity'; });
+      refresh();
+    })();
+    </script>
+  </div>
+</div>
+
+<div class="card" id="activity">
+  <div class="tabs">
+    <a href="?tab=statement&from={{ st.start }}&to={{ st.end }}" class="{{ 'on' if tab == 'statement' }}">Account activity</a>
+    <a href="?tab=invoices&from={{ st.start }}&to={{ st.end }}" class="{{ 'on' if tab == 'invoices' }}">All invoices ({{ inv_rows|length }})</a>
+    <a href="?tab=payments&from={{ st.start }}&to={{ st.end }}" class="{{ 'on' if tab == 'payments' }}">All payments ({{ pays|length }})</a>
+    <a href="?tab=branches" class="{{ 'on' if tab == 'branches' }}">Branches ({{ branches|selectattr('active')|list|length }})</a>
+    <a href="?tab=pos" class="{{ 'on' if tab == 'pos' }}">POs ({{ pos|length }})</a>
+  </div>
+  {% if tab == 'invoices' %}
+  <div class="tablewrap"><table>
+  <tr><th>#</th><th>Date</th><th>Due</th><th class="n">Total</th><th class="n">Open</th><th>Status</th><th>WhatsApp</th></tr>
+  {% for r in inv_rows %}<tr class="{{ 'voided' if r.i.void }}"><td><a href="{{ url_for('sales.invoice_view', iid=r.i.id) }}">{{ r.i.number }}</a></td>
+    <td>{{ r.i.date|d }}</td><td>{{ r.i.due_date|d }}</td><td class="n">{{ r.i.total|money }}</td><td class="n">{{ r.open|money(true) if not r.i.void }}</td>
+    <td><span class="tag {{ r.cls }}">{{ r.label }}</span></td><td>{% if r.sent %}<span class="tag sent">sent {{ r.sent[:10]|d }}</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="muted">No invoices.</td></tr>{% endfor %}
+  {% if opening_left %}<tr><td colspan="4">Unpaid opening balance</td><td class="n">{{ opening_left|money }}</td><td colspan="2"></td></tr>{% endif %}
+  {% if credit %}<tr><td colspan="4">Unapplied credit (paid in advance)</td><td class="n">-{{ credit|money }}</td><td colspan="2"></td></tr>{% endif %}
+  </table></div>
+  {% elif tab == 'branches' %}
+  <p class="muted" style="margin-top:0">Branches of this customer. Invoices can be <b>shipped to a branch</b> while billed to {{ c.name }}; the delivery challan prints the branch's address.
+    Use <a href="{{ url_for('po.new', customer_id=c.id) }}">PO batch billing</a> when one PO covers many branches.</p>
+  <div class="tablewrap"><table class="branches-tbl">
+  <tr><th>Code</th><th>Branch name</th><th>Address</th><th>Contact</th><th>Phone</th><th>Email</th><th></th></tr>
+  {% for b in branches %}
+  <tr class="{{ 'voided' if not b.active }}">{% if can('customers.edit') %}
+    <td colspan="7" style="padding:4px 0"><form method="post" action="{{ url_for('po.branch_save', cid=c.id) }}" class="rowform" style="gap:6px">{{ csrf_field() }}
+      <input type="hidden" name="id" value="{{ b.id }}">
+      <input name="code" value="{{ b.code }}" placeholder="Code" style="width:70px"><input name="name" value="{{ b.name }}" required style="width:170px">
+      <input name="address" value="{{ b.address }}" placeholder="Address" style="width:230px"><input name="contact" value="{{ b.contact }}" placeholder="Contact" style="width:110px">
+      <input name="phone" value="{{ b.phone }}" placeholder="Phone" style="width:120px"><input name="email" value="{{ b.email }}" placeholder="Email" style="width:150px">
+      <label class="check" style="font-size:12px"><input type="checkbox" name="inactive" {{ 'checked' if not b.active }}> Closed</label>
+      <button class="btn light small">Save</button></form></td>
+    {% else %}<td>{{ b.code }}</td><td><b>{{ b.name }}</b></td><td>{{ b.address }}</td><td>{{ b.contact }}</td><td>{{ b.phone }}</td><td>{{ b.email }}</td><td></td>{% endif %}
+  </tr>{% else %}<tr><td colspan="7" class="muted">No branches yet.</td></tr>{% endfor %}
+  </table></div>
+  {% if can('customers.edit') %}
+  <h3 style="margin-top:16px">Add a branch</h3>
+  <form method="post" action="{{ url_for('po.branch_save', cid=c.id) }}" class="rowform" style="gap:6px">{{ csrf_field() }}
+    <input name="code" placeholder="Code" style="width:70px"><input name="name" placeholder="Branch name" required style="width:170px">
+    <input name="address" placeholder="Address" style="width:230px"><input name="contact" placeholder="Contact person" style="width:110px">
+    <input name="phone" placeholder="Phone / WhatsApp" style="width:120px"><input name="email" placeholder="Email" style="width:150px">
+    <button class="btn small">{{ icon('plus', 14) }} Add branch</button></form>
+  <form method="post" action="{{ url_for('po.branch_import', cid=c.id) }}" enctype="multipart/form-data" class="rowform" style="margin-top:10px">{{ csrf_field() }}
+    <span class="muted" style="font-size:13px">Many branches? Import from Excel / CSV with columns <b>Branch name, Code, Address, Contact, Phone, Email</b>:</span>
+    <input type="file" name="file" accept=".xlsx,.csv" required><button class="btn light small">{{ icon('upload', 14) }} Import</button></form>
+  {% endif %}
+  {% elif tab == 'pos' %}
+  <div class="tablewrap"><table>
+  <tr><th>PO no.</th><th>Date</th><th>Combined invoice</th><th></th></tr>
+  {% for b in pos %}<tr><td><a href="{{ url_for('po.view', bid=b.id) }}"><b>{{ b.po_no }}</b></a></td><td>{{ b.date|d }}</td><td>{{ b.combined_no or '—' }}</td><td></td></tr>
+  {% else %}<tr><td colspan="4" class="muted">No POs.</td></tr>{% endfor %}
+  </table></div>
+  {% if can('invoices.create') %}<p><a class="btn small" href="{{ url_for('po.new', customer_id=c.id) }}">{{ icon('plus', 14) }} New PO</a></p>{% endif %}
+  {% elif tab == 'payments' %}
+  <div class="tablewrap"><table>
+  <tr><th>#</th><th>Date</th><th>Method</th><th>Reference</th><th class="n">Amount</th></tr>
+  {% for p in pays %}<tr class="{{ 'voided' if p.void }}"><td><a href="{{ url_for('sales.payment_view', pid=p.id) }}">{{ p.number }}</a></td>
+    <td>{{ p.date|d }}</td><td>{{ p.method }}</td><td>{{ p.reference }}</td><td class="n">{{ p.amount|money }}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">No payments.</td></tr>{% endfor %}
+  </table></div>
+  {% else %}
+  <div class="tablewrap"><table>
+  <tr><th>Date</th><th>Type</th><th>Ref</th><th class="n">Invoiced</th><th class="n">Paid</th><th class="n">Balance</th></tr>
+  <tr><td>{{ st.start|d }}</td><td colspan="4"><i>Balance brought forward</i></td><td class="n">{{ st.brought_forward|money }}</td></tr>
+  {% for l in st.lines %}<tr><td>{{ l.date|d }}</td><td>{{ l.type }}</td>
+    <td>{% if l.type == 'Invoice' %}<a href="{{ url_for('sales.invoice_view', iid=l.id) }}">{{ l.ref }}</a>{% elif l.type == 'Payment' %}<a href="{{ url_for('sales.payment_view', pid=l.id) }}">{{ l.ref }}</a>{% else %}{{ l.ref }}{% endif %}</td>
+    <td class="n">{{ l.debit|money(true) }}</td><td class="n">{{ l.credit|money(true) }}</td><td class="n">{{ l.balance|money }}</td></tr>
+  {% endfor %}
+  <tr class="total"><td colspan="3">Closing balance {{ st.end|d }}</td><td class="n">{{ st.invoiced|money }}</td><td class="n">{{ st.paid|money }}</td><td class="n">{{ st.closing|money }}</td></tr>
+  </table></div>
+  {% endif %}
+</div>
+{% endblock %}

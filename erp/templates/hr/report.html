@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Salary register{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="filters">
+    <label>From month<input type="month" name="m1" value="{{ m1 }}"></label><label>To month<input type="month" name="m2" value="{{ m2 }}"></label>
+    <button class="btn grey">Show</button>
+    {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+    <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+  </form>
+  <div class="tablewrap"><table>
+  <tr>{% for h in headers %}<th class="{{ 'n' if loop.index0 >= 3 }}">{{ h }}</th>{% endfor %}</tr>
+  {% for r in rows %}<tr>{% for v in r %}<td class="{{ 'n' if loop.index0 >= 3 }}">{{ v|money if loop.index0 >= 4 else v }}</td>{% endfor %}</tr>
+  {% else %}<tr><td colspan="{{ headers|length }}" class="muted">No finalised salary sheets in these months.</td></tr>{% endfor %}
+  <tr class="total">{% for v in totals %}<td class="{{ 'n' if loop.index0 >= 3 }}">{{ v|money if loop.index0 >= 4 else v }}</td>{% endfor %}</tr>
+  </table></div>
+  <p class="muted">Only finalised salary sheets are counted. Financial year starts in July.</p>
+</div>
+{% endblock %}

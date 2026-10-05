@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Suppliers{% endblock %}
+{% block actions %}<a class="btn grey" href="{{ url_for('ops.supplier_form') }}">{{ icon('plus', 16) }} Add supplier</a>{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters"><label>Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Name or phone"></label>
+  <label class="check"><input type="checkbox" name="inactive" value="1" {{ 'checked' if request.args.inactive }}> Include inactive</label>
+  <button class="btn grey">Filter</button>
+  {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a></form>
+<div class="tablewrap"><table>
+<tr><th>Supplier</th><th>Contact</th><th>Phone</th><th class="n">We owe</th><th></th></tr>
+{% for s in rows %}<tr><td><a href="{{ url_for('ops.supplier_view', sid=s.id) }}"><b>{{ s.name }}</b></a>{% if not s.active %} <span class="tag">inactive</span>{% endif %}</td>
+  <td>{{ s.contact }}</td><td>{{ s.phone or s.whatsapp }}</td><td class="n">{{ s.balance|money }}</td>
+  <td class="n nowrap">
+    <a class="btn light small" target="_blank" href="{{ url_for('sup.supplier_statement_pdf', sid=s.id) }}" title="Account statement PDF (print or save)">{{ icon('pdf', 14) }} PDF</a>
+    {% if s.whatsapp or s.phone %}<form method="post" action="{{ url_for('sup.supplier_whatsapp', sid=s.id) }}" class="inl">{{ csrf_field() }}
+      <input type="hidden" name="back" value="{{ request.full_path }}"><button class="btn wa small" title="Send the account statement on WhatsApp">{{ icon('whatsapp', 14) }} Statement</button></form>{% endif %}
+    <a href="{{ url_for('ops.purchase_new', party_id=s.id) }}">Bill</a> · <a href="{{ url_for('ops.supplier_payment_new', supplier_id=s.id) }}">Pay</a></td></tr>
+{% else %}<tr><td colspan="5" class="muted">No suppliers yet.</td></tr>{% endfor %}
+<tr class="total"><td colspan="3">{{ rows|length }} suppliers</td><td class="n">{{ cur }} {{ total|money }}</td><td></td></tr>
+</table></div></div>
+{% endblock %}

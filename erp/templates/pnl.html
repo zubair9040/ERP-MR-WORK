@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Profit &amp; loss{% endblock %}
+{% block actions %}{% set qs = request.query_string.decode() %}
+<a class="btn grey" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+<a class="btn grey" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="filters">
+    <label>From<input type="date" name="from" value="{{ start }}"></label><label>To<input type="date" name="to" value="{{ end }}"></label>
+    <button class="btn grey">Show</button>
+  </form>
+</div>
+<div class="stats">
+  <div class="stat"><div class="k"><span class="chip">{{ icon('trend', 16) }}</span> Net sales</div><div class="v"><small>{{ cur }}</small>{{ net_sales|money }}</div></div>
+  <div class="stat s-warn"><div class="k"><span class="chip">{{ icon('box', 16) }}</span> Gross profit</div><div class="v"><small>{{ cur }}</small>{{ gross|money }}</div>
+    <div class="muted">{{ margin|round(1) }}% margin</div></div>
+  <div class="stat s-bad"><div class="k"><span class="chip">{{ icon('cash', 16) }}</span> Expenses</div><div class="v"><small>{{ cur }}</small>{{ total_exp|money }}</div></div>
+  <div class="stat {{ 's-ok' if net >= 0 else 's-bad' }}"><div class="k"><span class="chip">{{ icon('wallet', 16) }}</span> Net profit</div><div class="v"><small>{{ cur }}</small>{{ net|money }}</div></div>
+</div>
+<div class="card" style="max-width:720px">
+  <table>
+    <tr><td>Sales (before tax)</td><td class="n">{{ sales|money }}</td></tr>
+    <tr><td>Less: returns (credit notes)</td><td class="n">-{{ returns|money }}</td></tr>
+    <tr class="total"><td>Net sales</td><td class="n">{{ net_sales|money }}</td></tr>
+    <tr><td>Cost of goods sold <span class="muted">(quantity sold × average cost)</span></td><td class="n">-{{ cogs|money }}</td></tr>
+    <tr class="total"><td>Gross profit <span class="muted">{{ margin|round(1) }}%</span></td><td class="n">{{ gross|money }}</td></tr>
+    {% for e in exp %}<tr><td style="padding-left:26px">{{ e.category }}</td><td class="n">-{{ e.s|money }}</td></tr>{% endfor %}
+    <tr><td><b>Total expenses</b></td><td class="n"><b>-{{ total_exp|money }}</b></td></tr>
+    <tr class="total"><td style="font-size:16px">NET PROFIT</td><td class="n" style="font-size:18px;color:{{ 'var(--ok-ink)' if net >= 0 else 'var(--bad-ink)' }}">{{ cur }} {{ net|money }}</td></tr>
+  </table>
+  <p class="muted">Cost of goods uses each item's average purchase cost. Items with no purchase bill or opening cost count at zero cost, so enter opening stock costs for accurate profit.</p>
+</div>
+{% endblock %}

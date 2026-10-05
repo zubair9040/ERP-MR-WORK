@@ -1,0 +1,21 @@
+services:
+  erp:
+    build: .
+    restart: always
+    volumes:
+      - ./data:/data
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+    depends_on:
+      - erp
+volumes:
+  caddy_data:

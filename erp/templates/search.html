@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<form class="card bigsearch" action="{{ url_for('sales.search') }}">
+  {{ icon('search', 20) }}<input name="q" value="{{ s }}" autofocus placeholder="Customer, code, phone, city · invoice / receipt no. · PO · cheque no. · amount · item">
+  <button class="btn">Search</button>
+  <a class="btn light" href="{{ url_for('sales.transactions', q=s) }}">More options…</a>
+</form>
+{% if s %}
+{% set n = (res.customers or [])|length + (res.tx or [])|length + (res.by_amount or [])|length + (res.pos or [])|length + (res['items'] or [])|length %}
+{% if not n %}<div class="card"><p class="muted">Nothing found for "{{ s }}".</p></div>{% endif %}
+{% if res.customers %}<div class="card"><h3>{{ icon('users', 16) }} Customers ({{ res.customers|length }})</h3><table>
+  {% for c in res.customers %}<tr><td class="muted">{{ c.code }}</td><td><a href="{{ url_for('sales.customer_view', cid=c.id) }}"><b>{{ c.name }}</b></a> {{ co_tag(c.company_id) }}</td><td>{{ c.city }}</td><td>{{ c.whatsapp or c.phone }}</td>
+    <td class="n"><a href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">Invoice</a> · <a href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Collection</a></td></tr>{% endfor %}</table></div>{% endif %}
+{% for key, title in [('tx', 'Invoices, collections & returns'), ('by_amount', 'Same amount')] %}{% if res[key] %}
+<div class="card"><h3>{{ icon('list', 16) }} {{ title }} ({{ res[key]|length }})</h3><table>
+  {% for r in res[key] %}{% set url = url_for('sales.invoice_view', iid=r.id) if r.t == 'invoice' else (url_for('sales.payment_view', pid=r.id) if r.t == 'payment' else url_for('ops.credit_view', did=r.id)) %}
+  <tr class="{{ 'voided' if r.void }}"><td>{{ r.date|d }}</td><td><span class="tag {{ 'paid' if r.t == 'payment' else ('over' if r.t == 'credit' else 'open') }}">{{ types[r.t] }}</span></td>
+    <td><a href="{{ url }}"><b>#{{ r.number }}</b></a></td><td>{{ r.customer }}</td><td>{{ r.method }} {{ r.ref }}</td><td class="n">{{ r.amount|money }}</td></tr>{% endfor %}</table></div>
+{% endif %}{% endfor %}
+{% if res.pos %}<div class="card"><h3>{{ icon('layers', 16) }} POs</h3><table>{% for b in res.pos %}<tr><td><a href="{{ url_for('po.view', bid=b.id) }}"><b>PO {{ b.po_no }}</b></a></td><td>{{ b.customer }}</td><td>{{ b.date|d }}</td></tr>{% endfor %}</table></div>{% endif %}
+{% if res['items'] %}<div class="card"><h3>{{ icon('tag', 16) }} Items</h3><table>{% for it in res['items'] %}<tr><td><b>{{ it.code }}</b></td><td>{{ it.name }}</td><td class="n">{{ it.price|money }}</td>
+  <td class="n">{% if can('warehouse.view') %}<a href="{{ url_for('wh.card', item_id=it.id) }}">Stock card</a>{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+{% endif %}
+{% endblock %}

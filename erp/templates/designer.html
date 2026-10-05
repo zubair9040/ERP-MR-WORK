@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Print designer{% endblock %}
+{% block actions %}{% endblock %}
+{% block content %}
+<style>
+@font-face { font-family: "Poppins"; src: url("{{ url_for('static', filename='fonts/Poppins-Regular.ttf') }}"); }
+@font-face { font-family: "Poppins"; font-weight: 700; src: url("{{ url_for('static', filename='fonts/Poppins-Bold.ttf') }}"); }
+@font-face { font-family: "Poppins"; font-style: italic; src: url("{{ url_for('static', filename='fonts/Poppins-Italic.ttf') }}"); }
+@font-face { font-family: "DejaVu Sans"; src: url("{{ url_for('static', filename='fonts/DejaVuSans.ttf') }}"); }
+@font-face { font-family: "DejaVu Sans"; font-weight: 700; src: url("{{ url_for('static', filename='fonts/DejaVuSans-Bold.ttf') }}"); }
+</style>
+<div class="pd-top card">
+  <div class="seg">{% for k, v in docs.items() %}<a href="?doc={{ k }}&co={{ co or 0 }}" class="{{ 'on' if doc == k }}">{{ v }}</a>{% endfor %}</div>
+  {% if companies|length > 1 %}
+  <label class="pd-inline">Layout for
+    <select onchange="location='?doc={{ doc }}&co='+this.value">
+      <option value="0">All companies</option>
+      {% for c in companies %}<option value="{{ c.id }}" {{ 'selected' if co == c.id }}>{{ c.name }}</option>{% endfor %}
+    </select></label>{% endif %}
+  <span id="pdStatus" class="pd-status"></span>
+  <span class="grow"></span>
+  <label class="pd-inline">Start from
+    <select id="presetSel"><option value="">Choose a template…</option>{% for k, v in cfg.presetNames.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+  <a class="btn light small" href="{{ url_for('pd.templates') }}">All templates</a>
+</div>
+
+<div class="pd">
+  <div class="pd-left">
+    <div class="pd-tools">
+      <button class="btn light small" data-add="text">{{ icon('plus', 14) }} Text</button>
+      <select id="addField" class="pd-sel"><option value="">+ Field…</option></select>
+      <button class="btn light small" data-add="image">{{ icon('plus', 14) }} Logo / picture</button>
+      <button class="btn light small" data-add="box">{{ icon('plus', 14) }} Box</button>
+      <button class="btn light small" data-add="line">{{ icon('plus', 14) }} Line</button>
+      <button class="btn light small" data-add="kv">{{ icon('plus', 14) }} Label list</button>
+      <button class="btn light small" data-add="items" id="addItems">{{ icon('plus', 14) }} Items table</button>
+      <button class="btn light small" data-add="totals" id="addTotals">{{ icon('plus', 14) }} Totals</button>
+      <span class="grow"></span>
+      <button class="btn light small" id="undo" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <label class="pd-inline small"><input type="checkbox" id="showGrid" checked> Grid</label>
+      <label class="pd-inline small">Zoom <input type="range" id="zoom" min="2.4" max="4.6" step="0.1" value="3.4"></label>
+    </div>
+    <div class="pd-stage" id="stage"><div class="pd-page grid" id="page"></div></div>
+    <p class="muted" style="font-size:12.5px">Drag to move, drag the corner to resize. Arrow keys move 1 mm (Shift = 5 mm). Delete removes.
+      Things above the items table repeat on every page; things below it print on the last page.</p>
+  </div>
+  <aside class="pd-right card">
+    <div id="props"><p class="muted">Click something on the page to change it.</p></div>
+    <div class="pd-save">
+      <button class="btn grey" id="preview">{{ icon('pdf', 16) }} Preview PDF</button>
+      <button class="btn" id="save">{{ icon('save', 16) }} Save &amp; use</button>
+      <button class="link muted" id="turnoff" style="font-size:12.5px">Use the standard print instead</button>
+    </div>
+  </aside>
+</div>
+<script id="pdcfg" type="application/json">{{ cfg|tojson }}</script>
+<script>window.PD_CSRF = {{ csrf_token()|tojson }};</script>
+<script src="{{ url_for('static', filename='designer.js') }}?v=5"></script>
+{% endblock %}

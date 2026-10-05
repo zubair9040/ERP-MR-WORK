@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit ' ~ s.name if s else 'New supplier' }}{% endblock %}
+{% macro v(key, default='') %}{{ f[key] if f and key in f else (s[key] if s and s[key] is not none else default) }}{% endmacro %}
+{% block content %}
+<form method="post" class="card">
+  {{ csrf_field() }}
+  <div class="form2">
+    <label class="wide">Supplier name<input name="name" value="{{ v('name') }}" required></label>
+    <label>Contact person<input name="contact" value="{{ v('contact') }}"></label>
+    <label>Phone<input name="phone" value="{{ v('phone') }}"></label>
+    <label>WhatsApp<input name="whatsapp" value="{{ v('whatsapp') }}"></label>
+    <label>Email<input name="email" value="{{ v('email') }}"></label>
+    <label class="wide">Address<textarea name="address" rows="2">{{ v('address') }}</textarea></label>
+    <label>Payment terms (days)<input type="number" min="0" name="terms_days" value="{{ v('terms_days', 30) }}"></label>
+    <div></div>
+    <label>Opening balance (what we owe them)<input name="opening_balance" value="{{ f.opening_balance if f and 'opening_balance' in f else (s.opening_balance|plain if s else '0.00') }}"></label>
+    <label>Opening balance date<input type="date" name="opening_date" value="{{ v('opening_date') }}"></label>
+    <label class="wide">Notes<textarea name="notes" rows="2">{{ v('notes') }}</textarea></label>
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if not s or s.active }}> Active</label>
+  </div>
+  <button class="btn">Save supplier</button> <a href="{{ url_for('ops.supplier_view', sid=s.id) if s else url_for('ops.suppliers') }}">Cancel</a>
+</form>
+{% endblock %}

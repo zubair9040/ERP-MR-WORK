@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Companies{% endblock %}
+{% macro form(c) %}
+<form method="post" enctype="multipart/form-data">{{ csrf_field() }}{% if c %}<input type="hidden" name="id" value="{{ c.id }}">{% endif %}
+  <div class="form2">
+    <label class="wide">Company name (as printed)<input name="name" value="{{ c.name if c else '' }}" required></label>
+    <label>Short code (for the company bar)<input name="code" value="{{ c.code if c else '' }}" required maxlength="12" placeholder="TF, MRE1…"></label>
+    <label>Colour<input type="color" name="color" value="{{ c.color if c else '#6366f1' }}" style="height:42px;padding:4px"></label>
+    <label class="check wide"><input type="checkbox" name="gst_registered" value="1" {{ 'checked' if c and c.gst_registered }}> GST registered (sales tax is charged on its invoices)</label>
+    <label>NTN<input name="ntn" value="{{ c.ntn if c else '' }}"></label>
+    <label>GST / STRN number<input name="gst_no" value="{{ c.gst_no if c else '' }}"></label>
+    <label>Default sales tax %<input name="default_tax_rate" value="{{ '%g'|format(c.default_tax_rate) if c else '0' }}" inputmode="decimal"></label>
+    <label>Next invoice number<input name="next_invoice_number" value="{{ c.next_invoice_number if c else 1 }}" inputmode="numeric"></label>
+    <label class="wide">Address<textarea name="address" rows="2">{{ c.address if c else '' }}</textarea></label>
+    <label>Phone<input name="phone" value="{{ c.phone if c else '' }}"></label>
+    <label>Email<input name="email" value="{{ c.email if c else '' }}"></label>
+    <label>Website<input name="website" value="{{ c.website if c else '' }}"></label>
+    <label>Order in the bar<input name="sort" value="{{ c.sort if c else 0 }}" inputmode="numeric"></label>
+    <label class="wide">Note printed on this company's invoices<input name="invoice_note" value="{{ c.invoice_note if c else '' }}"></label>
+    <label class="wide">Logo (PNG/JPG)<input type="file" name="logo" accept=".png,.jpg,.jpeg"></label>
+    {% if c %}<label class="check"><input type="checkbox" name="remove_logo" value="1"> Remove logo</label>
+    <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if c.active }}> Active</label>{% endif %}
+  </div>
+  <button class="btn">{{ 'Save company' if c else 'Add company' }}</button>{% if c %} <a href="{{ url_for('co.manage') }}">Cancel</a>{% endif %}
+</form>
+{% endmacro %}
+{% block content %}
+<div class="dash" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr))">
+  {% for r in rows %}{% set c = r.c %}
+  <div class="card co-card {{ 'off' if not c.active }}" style="border-top:4px solid {{ c.color }}">
+    {% if edit == c.id %}{{ form(c) }}{% else %}
+    <div style="display:flex;gap:14px;align-items:flex-start">
+      {% if r.logo %}<img src="{{ url_for('co.logo', cid=c.id) }}" alt="" style="max-width:110px;max-height:56px;object-fit:contain">{% else %}<span class="logo" style="background:{{ c.color }};font-size:11px">{{ c.code[:4] }}</span>{% endif %}
+      <div style="flex:1"><h3 style="margin:0">{{ c.name }}</h3>
+        <div class="muted">{{ c.code }} · {% if c.gst_registered %}<b style="color:var(--ok-ink)">GST registered</b> · tax {{ '%g'|format(c.default_tax_rate) }}%{% else %}Non-GST{% endif %}{% if not c.active %} · <span class="tag void">inactive</span>{% endif %}</div></div>
+      <a class="btn light small" href="?edit={{ c.id }}">Edit</a>
+    </div>
+    <dl class="kv" style="margin-top:12px">
+      <dt>NTN</dt><dd>{{ c.ntn or '—' }}</dd><dt>GST no.</dt><dd>{{ c.gst_no or '—' }}</dd>
+      <dt>Address</dt><dd>{{ c.address or '—' }}</dd><dt>Phone</dt><dd>{{ c.phone or '—' }}</dd>
+      <dt>Customers</dt><dd>{{ r.customers }}</dd><dt>Invoices</dt><dd>{{ r.invoices }} · next #{{ r.next }}</dd>
+    </dl>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="card" id="add"><h3>{{ icon('plus', 16) }} Add company</h3>{{ form(None) }}</div>
+</div>
+<form method="post" action="{{ url_for('co.defaults') }}" class="card">{{ csrf_field() }}
+  <h3>Defaults</h3>
+  <div class="form2">
+    <label>Purchases are normally made under<select name="default_purchase_company">{% for r in rows if r.c.active %}<option value="{{ r.c.id }}" {{ 'selected' if purchase_co == r.c.id|string }}>{{ r.c.name }}</option>{% endfor %}</select></label>
+    <label>Salaries are paid by<select name="salary_company">{% for r in rows if r.c.active %}<option value="{{ r.c.id }}" {{ 'selected' if salary_co == r.c.id|string }}>{{ r.c.name }}</option>{% endfor %}</select></label>
+  </div>
+  <p class="muted">Suppliers and warehouse stock are shared by all companies. Each customer belongs to one company.
+    A supplier bill bought under one company can be paid from any company.</p>
+  <button class="btn">Save defaults</button>
+</form>
+{% endblock %}

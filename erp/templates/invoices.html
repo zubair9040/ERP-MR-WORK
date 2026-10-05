@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Invoices{% endblock %}
+{% block actions %}<a class="btn grey" href="{{ url_for('reports.open_invoices') }}">{{ icon('list', 16) }} All unpaid bills</a>{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters">
+  <label>Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Customer or invoice #"></label>
+  <label>Status<select name="status">{% for v, t in [('', 'All'), ('open', 'Unpaid'), ('over', 'Overdue'), ('paid', 'Paid'), ('void', 'Void')] %}
+    <option value="{{ v }}" {{ 'selected' if request.args.status == v }}>{{ t }}</option>{% endfor %}</select></label>
+  {% if not is_rep() %}<label>Rep<select name="rep"><option value="">All</option>{% for r in reps %}<option value="{{ r.id }}" {{ 'selected' if request.args.rep == r.id|string }}>{{ r.code }}</option>{% endfor %}</select></label>{% endif %}
+  <label>From<input type="date" name="from" value="{{ request.args.get('from', '') }}"></label>
+  <label>To<input type="date" name="to" value="{{ request.args.to or '' }}"></label>
+  <label>Delivery<select name="delivered">{% for v, t in [('', 'All'), ('no', 'Not delivered'), ('yes', 'Delivered')] %}<option value="{{ v }}" {{ 'selected' if (request.args.delivered or '') == v }}>{{ t }}</option>{% endfor %}</select></label>
+  <button class="btn grey">Filter</button>
+  {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+</form>
+<div class="tablewrap"><table>
+<tr><th>#</th><th>Date</th><th>Customer</th><th>Rep</th><th>Due</th><th class="n">Total</th><th class="n">Open</th><th>Status</th><th>Delivery</th></tr>
+{% for r in rows %}<tr class="{{ 'voided' if r.i.void }}"><td><a href="{{ url_for('sales.invoice_view', iid=r.i.id) }}">{{ r.i.number }}</a></td>
+  <td>{{ r.i.date|d }}</td><td>{{ r.i.customer }}{% if all_companies()|length > 1 and not cur_company() %} {{ co_tag(r.i.company_id) }}{% endif %}</td><td>{{ r.i.rep_code or '' }}</td><td>{{ r.i.due_date|d }}</td>
+  <td class="n">{{ r.i.total|money }}</td><td class="n">{{ r.open|money(true) }}</td><td><span class="tag {{ r.cls }}">{{ r.label }}</span></td>
+  <td>{% if not r.i.void %}{% if r.i.delivered_on %}<span class="dl-tag yes">✓ {{ r.i.delivered_on|d }}</span>{% else %}<form method="post" action="{{ url_for('sales.invoice_delivered', iid=r.i.id) }}" class="inl">{{ csrf_field() }}<input type="hidden" name="back" value="{{ request.full_path }}"><button class="dl-tag no" style="border:0;cursor:pointer" title="Click to mark delivered">Not delivered</button></form>{% endif %}{% endif %}</td></tr>
+{% else %}<tr><td colspan="9" class="muted">No invoices found.</td></tr>{% endfor %}
+<tr class="total"><td colspan="5">{{ rows|length }} invoices{% if rows|length == 500 %} (latest 500 — narrow the dates to see more){% endif %}</td>
+  <td class="n">{{ total|money }}</td><td class="n">{{ open_total|money }}</td><td></td><td></td></tr>
+</table></div></div>
+{% endblock %}

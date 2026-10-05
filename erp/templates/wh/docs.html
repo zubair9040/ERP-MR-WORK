@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Stock documents{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="chips">
+    <a href="?" class="chip-l {{ 'on' if not request.args.type }}">All</a>
+    {% for k, t in types.items() %}<a href="?type={{ k }}" class="chip-l {{ 'on' if request.args.type == k }}">{{ t.name }}</a>{% endfor %}
+  </div>
+  <form class="filters">
+    {% if request.args.type %}<input type="hidden" name="type" value="{{ request.args.type }}">{% endif %}
+    <label>Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Party, reference, doc no."></label>
+    <label>Warehouse<select name="w"><option value="">All</option>{% for w in whs %}<option value="{{ w.id }}" {{ 'selected' if request.args.w == w.id|string }}>{{ w.code }}</option>{% endfor %}</select></label>
+    <label>From<input type="date" name="from" value="{{ request.args.get('from', '') }}"></label>
+    <label>To<input type="date" name="to" value="{{ request.args.to or '' }}"></label>
+    <button class="btn grey">Filter</button>
+    {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+    <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+  </form>
+  <div class="tablewrap"><table>
+  <tr><th>Doc no.</th><th>Date</th><th>Type</th><th>Warehouse</th><th>Party</th><th>Reference</th><th class="n">Lines</th><th class="n">Units</th><th></th></tr>
+  {% for d in rows %}<tr class="{{ 'voided' if d.void }}">
+    <td><a href="{{ url_for('wh.doc_view', did=d.id) }}"><b>{{ doc_no(d.type, d.number) }}</b></a></td><td>{{ d.date|d }}</td>
+    <td><span class="dtag d-{{ d.type|lower }}">{{ types[d.type].name }}</span></td>
+    <td>{{ d.wh_code }}{% if d.to_code %} → {{ d.to_code }}{% endif %}</td><td>{{ d.party }}</td><td class="muted">{{ d.ref }}</td>
+    <td class="n">{{ d.n }}</td><td class="n">{{ '%g'|format(d.units) }}</td>
+    <td class="n"><a target="_blank" href="{{ url_for('wh.doc_pdf', did=d.id) }}" title="Print">{{ icon('print', 16) }}</a></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">No documents found.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

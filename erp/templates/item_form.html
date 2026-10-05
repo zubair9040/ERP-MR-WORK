@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit item' if it else 'New item' }}{% endblock %}
+{% macro v(k, d='') %}{{ request.form[k] if request.form and k in request.form else (it[k] if it else d) }}{% endmacro %}
+{% block content %}
+<form method="post" class="card">
+  {{ csrf_field() }}
+  <div class="form2">
+    <label>Type<select name="kind" id="kind">{% for k, t in kinds.items() %}<option value="{{ k }}" {{ 'selected' if v('kind', 'item') == k }}>{{ t }}</option>{% endfor %}</select></label>
+    <div></div>
+    <label>Item code (typed on invoices)<input name="code" value="{{ v('code') }}" required style="text-transform:uppercase"></label>
+    <label>Name<input name="name" value="{{ v('name') }}" required></label>
+    <label>Group (e.g. Staplers, Glue sticks)<input name="grp" value="{{ v('grp') }}" list="grplist" placeholder="Type a new group or pick one"></label>
+    <datalist id="grplist">{% for g_ in groups %}<option value="{{ g_ }}">{% endfor %}</datalist>
+    <label class="wide">Description (printed on invoice)<input name="description" value="{{ v('description') }}"></label>
+    <label class="for-item">U/M (Box, Doz, Pcs…)<input name="unit" value="{{ v('unit') }}"></label>
+    <label class="for-item">Sale price per piece<input name="price" value="{{ request.form.price if request.form else (it.price|plain if it else '') }}"></label>
+    <div class="wide for-stock optbox-label" style="margin-top:6px">Warehouse</div>
+    <label class="for-stock">Usual pieces per carton (can be changed on each warehouse line)<input name="pcs_per_ctn" value="{{ request.form.pcs_per_ctn if request.form else ('%g'|format(it.pcs_per_ctn) if it and it.pcs_per_ctn else '') }}" inputmode="decimal" placeholder="e.g. 24"></label>
+    <label class="for-stock">Barcode (for scanning)<input name="barcode" value="{{ v('barcode') }}"></label>
+    <label class="for-stock">Location / shelf<input name="location" value="{{ v('location') }}" placeholder="e.g. Rack A-3"></label>
+    <label class="for-stock">Minimum stock in pieces (low-stock alert)<input name="reorder_level" value="{{ request.form.reorder_level if request.form else ('%g'|format(it.reorder_level) if it and it.reorder_level else '') }}" inputmode="decimal"></label>
+    <label class="for-stock">Standard cost per piece (used for stock value until goods receipts have a cost)<input name="opening_cost" value="{{ request.form.opening_cost if request.form else (it.opening_cost|plain if it and it.opening_cost else '') }}" inputmode="decimal"></label>
+    <p class="wide for-stock muted" style="margin-top:-4px">Stock quantities are entered in the Warehouse as cartons + loose pieces (Opening stock, Goods receipt, Goods issue…), not here.</p>
+    <label class="for-disc">Discount percent (e.g. 5 for 5% off)<input name="percent" value="{{ request.form.percent if request.form else ('%g'|format(-it.percent) if it and it.percent else '') }}"></label>
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if not it or it.active }}> Active</label>
+  </div>
+  <button class="btn">Save item</button> <a href="{{ url_for('sales.items') }}">Cancel</a>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const k = document.getElementById('kind');
+  function show() {
+    document.querySelectorAll('.for-item').forEach(e => e.style.display = ['item', 'service'].includes(k.value) ? '' : 'none');
+    document.querySelectorAll('.for-stock').forEach(e => e.style.display = k.value === 'item' ? '' : 'none');
+    document.querySelectorAll('.for-disc').forEach(e => e.style.display = k.value === 'discount' ? '' : 'none');
+  }
+  k.addEventListener('change', show); show();
+})();
+</script>
+{% endblock %}

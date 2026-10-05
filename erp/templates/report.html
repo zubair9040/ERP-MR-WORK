@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block actions %}{% set qs = request.query_string.decode() %}
+<a class="btn grey" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+<a class="btn grey" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>{% endblock %}
+{% block content %}
+<div class="card">
+  {% if filters %}
+  <form class="filters">
+    {% if 'dates' in filters %}
+    <label>From<input type="date" name="from" value="{{ request.args.get('from') or today[:8] ~ '01' }}"></label>
+    <label>To<input type="date" name="to" value="{{ request.args.to or today }}"></label>
+    {% endif %}
+    {% if 'by' in filters %}
+    <label>Group by<select name="by">{% for v, t in [('rep', 'Sales rep'), ('customer', 'Customer'), ('item', 'Item'), ('group', 'Item group')] %}
+      <option value="{{ v }}" {{ 'selected' if (request.args.by or 'rep') == v }}>{{ t }}</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if 'dby' in filters %}
+    <label>Group by<select name="by">{% for v, t in [('customer', 'Customer'), ('item', 'Item'), ('group', 'Item group'), ('rep', 'Sales rep')] %}
+      <option value="{{ v }}" {{ 'selected' if (request.args.by or 'customer') == v }}>{{ t }}</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if 'puby' in filters %}
+    <label>Group by<select name="by">{% for v, t in [('supplier', 'Supplier'), ('item', 'Item'), ('group', 'Item group'), ('detail', 'Every line (detail)')] %}
+      <option value="{{ v }}" {{ 'selected' if (request.args.by or 'supplier') == v }}>{{ t }}</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if 'pby' in filters %}
+    <label>Group by<select name="by">{% for v, t in [('method', 'Method'), ('day', 'Day'), ('customer', 'Customer')] %}
+      <option value="{{ v }}" {{ 'selected' if (request.args.by or 'method') == v }}>{{ t }}</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if 'wh' in filters %}
+    <label>Warehouse<select name="w"><option value="">All warehouses</option>{% for w in whs %}<option value="{{ w.id }}" {{ 'selected' if request.args.w == w.id|string }}>{{ w.code }} · {{ w.name }}</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if 'aging' in filters %}
+    <label>Ranges<select name="scale">{% for k, t in [('30', 'Up to 30+ days'), ('60', 'Up to 60+ days'), ('90', 'Up to 90+ days'), ('120', 'Up to 120+ days'), ('150', 'Up to 150+ days'), ('180', 'Up to 180+ days')] %}
+      <option value="{{ k }}" {{ 'selected' if (request.args.scale or '180') == k }}>{{ t }}</option>{% endfor %}</select></label>
+    <label>Count days from<select name="basis"><option value="invoice">Invoice date</option><option value="due" {{ 'selected' if request.args.basis == 'due' }}>Due date</option></select></label>
+    <label>Show only overdue<select name="min"><option value="">All</option>{% for d in (30, 60, 90, 120, 150, 180) %}<option value="{{ d }}" {{ 'selected' if request.args.min == d|string }}>{{ d }}+ days</option>{% endfor %}</select></label>
+    {% endif %}
+    {% if 'cust' in filters %}<label>Customer<input name="cust" value="{{ request.args.cust or '' }}" list="custnames" placeholder="Name or code" style="width:190px"></label>
+      <datalist id="custnames">{% for n in cust_names %}<option value="{{ n }}">{% endfor %}</datalist>{% endif %}
+    {% if 'sup' in filters %}<label>Supplier<input name="sup" value="{{ request.args.sup or '' }}" placeholder="Supplier name" style="width:170px"></label>{% endif %}
+    {% if 'item' in filters %}<label>Item<input name="item" value="{{ request.args.item or '' }}" list="itemcodes" placeholder="Code or name" style="width:150px"></label>
+      <datalist id="itemcodes">{% for n in item_codes %}<option value="{{ n }}">{% endfor %}</datalist>{% endif %}
+    {% if 'group' in filters %}{% set gs = request.args.getlist('group') %}<details class="msel"><summary>Item group{% if gs %} <b>({{ gs|length }})</b>{% endif %}</summary><div class="msel-box">
+      {% for g_ in groups %}<label class="check"><input type="checkbox" name="group" value="{{ g_ }}" {{ 'checked' if g_ in gs }}> {{ g_ }}</label>{% else %}<span class="muted">No groups yet. Set them on the Items page.</span>{% endfor %}
+      {% if groups %}<label class="check"><input type="checkbox" name="group" value="(none)" {{ 'checked' if '(none)' in gs }}> <i>No group</i></label>{% endif %}</div></details>{% endif %}
+    {% if 'reps' in filters and not is_rep() %}{% set rs = request.args.getlist('rep') %}<details class="msel"><summary>Rep{% if rs %} <b>({{ rs|length }})</b>{% endif %}</summary><div class="msel-box">
+      {% for r in reps %}<label class="check"><input type="checkbox" name="rep" value="{{ r.id }}" {{ 'checked' if r.id|string in rs }}> {{ r.code }} · {{ r.name }}</label>{% endfor %}</div></details>{% endif %}
+    {% if 'city' in filters %}{% set cs = request.args.getlist('city') %}<details class="msel"><summary>City{% if cs %} <b>({{ cs|length }})</b>{% endif %}</summary><div class="msel-box">
+      {% for c_ in cities %}<label class="check"><input type="checkbox" name="city" value="{{ c_ }}" {{ 'checked' if c_ in cs }}> {{ c_ }}</label>{% else %}<span class="muted">No cities yet.</span>{% endfor %}</div></details>{% endif %}
+    {% if 'min' in filters %}<label>Bills older than<select name="min"><option value="">All</option>{% for d in (30, 60, 90, 120, 150, 180) %}<option value="{{ d }}" {{ 'selected' if request.args.min == d|string }}>{{ d }}+ days</option>{% endfor %}</select></label>{% endif %}
+    {% if 'as_of' in filters %}<label>As of<input type="date" name="as_of" value="{{ request.args.as_of or today }}"></label>{% endif %}
+    {% if 'sort' in filters %}<label>Sort<select name="sort">{% for k, t in sorts %}<option value="{{ k }}" {{ 'selected' if request.args.sort == k }}>{{ t }}</option>{% endfor %}</select></label>{% endif %}
+    <button class="btn grey">Show</button>
+    {% if request.args.keys()|reject('in', ['by'])|list|length %}<a class="btn light clearf" href="{{ request.path }}{{ ('?by=' ~ request.args.by) if request.args.by }}">✕ Clear filter</a>{% endif %}
+  </form>
+  {% endif %}
+  <div class="tablewrap"><table>
+    <tr>{% for h in headers %}<th class="{{ 'n' if loop.index0 in money_cols or h in ('Qty', 'Invoices', 'Payments') }}">{{ h }}</th>{% endfor %}</tr>
+    {% for r in rows %}<tr{% if r[0] is string and r[0].startswith('   Total') %} class="subtot"{% endif %}>{% for v in r %}<td class="{{ 'n' if loop.index0 in money_cols or v is number }}">{{ v|money(true) if loop.index0 in money_cols else v }}</td>{% endfor %}</tr>
+    {% else %}<tr><td colspan="{{ headers|length }}" class="muted">Nothing for this period.</td></tr>{% endfor %}
+    {% if totals %}<tr class="total">{% for v in totals %}<td class="{{ 'n' if loop.index0 in money_cols or v is number }}">{{ v|money if loop.index0 in money_cols and v != '' else v }}</td>{% endfor %}</tr>{% endif %}
+  </table></div>
+  {% if note %}<p class="muted">{{ note }}</p>{% endif %}
+</div>
+{% endblock %}

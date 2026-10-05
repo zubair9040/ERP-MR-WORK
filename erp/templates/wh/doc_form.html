@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block title %}{{ ('Edit ' ~ doc_no) if doc else ('New ' ~ T.name|lower) }}{% endblock %}
+{% macro v(key, default='') %}{{ f[key] if f and f.get(key) not in (none, '') else default }}{% endmacro %}
+{% set cost_on = show_cost and dtype in ('GRN', 'OPN') %}
+{% block content %}
+<form method="post" id="whform" autocomplete="off">
+{{ csrf_field() }}
+<input type="hidden" name="invoice_id" value="{{ v('invoice_id') }}"><input type="hidden" name="purchase_id" value="{{ v('purchase_id') }}">
+<div class="qb-toolbar">
+  <a class="tb" href="{{ url_for('wh.docs', type=dtype) }}">{{ icon('list', 16) }} <span>All {{ T.name|lower }}s</span></a>
+  <span class="sep"></span>
+  <button class="tb" name="action" value="save">{{ icon('save', 16) }} <span>Save</span></button>
+  {% if doc %}<a class="tb" target="_blank" href="{{ url_for('wh.doc_pdf', did=doc.id) }}">{{ icon('print', 16) }} <span>Print</span></a>{% endif %}
+  <span class="sep"></span>
+  <label class="tb" style="margin:0;cursor:pointer"><input type="checkbox" id="scanmode" style="width:auto;margin:0"> <span>Barcode scan mode</span></label>
+</div>
+<div class="qb" style="grid-template-columns:1fr">
+  <div class="qb-main">
+    <div class="qb-bar wh-bar d-{{ dtype|lower }}">
+      <label>{{ 'FROM WAREHOUSE' if dtype == 'TRF' else 'WAREHOUSE' }}
+        <select name="warehouse_id" id="wh" required>
+          {% for w in whs %}<option value="{{ w.id }}" {{ 'selected' if v('warehouse_id', default_wh)|string == w.id|string }}>{{ w.code }} · {{ w.name }}</option>{% endfor %}
+        </select></label>
+      {% if dtype == 'TRF' %}
+      <span class="arrow">{{ icon('right', 22) }}</span>
+      <label>TO WAREHOUSE
+        <select name="to_warehouse_id" id="towh" required><option value="">— choose —</option>
+          {% for w in whs %}<option value="{{ w.id }}" {{ 'selected' if v('to_warehouse_id')|string == w.id|string }}>{{ w.code }} · {{ w.name }}</option>{% endfor %}
+        </select></label>
+      {% endif %}
+      {% if T.party %}
+      <label>{{ T.party|upper }}<input name="party" list="parties" value="{{ v('party') }}" style="min-width:260px;font-weight:600"></label>
+      <datalist id="parties">{% for p in parties %}<option value="{{ p }}">{% endfor %}</datalist>
+      {% endif %}
+    </div>
+    <div class="qb-doc">
+      <div class="qb-top">
+        <div class="qb-title">
+          <div class="big"><span class="dtag d-{{ dtype|lower }}" style="font-size:12px;vertical-align:6px">{{ T.name }}</span> {{ doc_no }}</div>
+          <div class="muted" style="margin-top:6px;max-width:520px">
+            {% if dtype == 'GRN' %}Goods coming into the warehouse. Stock goes up.
+            {% elif dtype == 'DC' %}Goods issued out of the warehouse (cartons + loose pieces). Stock goes down. Not linked to any invoice.
+            {% elif dtype == 'TRF' %}Goods moving from one warehouse to another. Total stock doesn't change.
+            {% elif dtype == 'ADJ' %}Correct stock for damaged, lost or found goods. Use + to add and − to remove.
+            {% elif dtype == 'CNT' %}Type what you actually count on the shelf. The system works out the difference and corrects the stock. Rows left blank are not changed.
+            {% else %}Starting quantities (and costs) when you begin using the warehouse.{% endif %}
+          </div>
+        </div>
+        <div class="qb-fields" style="grid-template-columns:150px 180px 180px">
+          <label>DATE<input type="date" name="date" value="{{ v('date', today) }}" required></label>
+          <label>REFERENCE<input name="ref" value="{{ v('ref') }}" placeholder="{{ 'Supplier bill / GRN no.' if dtype == 'GRN' else ('Order / reference no.' if dtype == 'DC' else '') }}"></label>
+          {% if dtype == 'DC' %}<label>VEHICLE / TRANSPORT<input name="vehicle" value="{{ v('vehicle') }}" placeholder="e.g. TRANSPORT, LEA-1234"></label>{% endif %}
+        </div>
+      </div>
+      {% if dtype == 'CNT' %}
+      <p><button type="button" class="btn light small" id="loadall">{{ icon('list', 14) }} Load all items in this warehouse</button>
+         <span class="muted">Then type the counted quantity for each item.</span></p>
+      {% endif %}
+      <datalist id="codes">{% for it in items %}<option value="{{ it.code }}">{{ it.desc }}</option>{% endfor %}</datalist>
+      <div class="grid-wrap" style="margin-top:12px">
+        <table class="grid" id="grid">
+          <thead><tr>
+            <th style="width:36px">#</th><th class="c-code">ITEM CODE / BARCODE</th><th style="min-width:230px">DESCRIPTION</th>
+            <th class="c-qty" style="width:90px">{{ {'CNT': 'SYSTEM PCS', 'ADJ': 'NOW PCS', 'GRN': 'IN STOCK', 'OPN': 'IN STOCK'}.get(dtype, 'AVAILABLE') }}</th>
+            <th class="c-qty" style="width:80px">{{ {'CNT': 'COUNTED CTN', 'ADJ': '+/− CTN'}.get(dtype, 'CARTONS') }}</th>
+            <th class="c-qty" style="width:70px">PCS / CTN</th>
+            <th class="c-qty" style="width:75px">{{ '+/− LOOSE' if dtype == 'ADJ' else 'LOOSE PCS' }}</th>
+            <th class="c-qty" style="width:85px">TOTAL PCS</th>
+            {% if cost_on %}<th class="c-price">COST / PC</th><th class="c-amt">VALUE</th>{% endif %}
+            <th class="c-qty" style="width:90px">{{ 'DIFFERENCE' if dtype == 'CNT' else 'AFTER' }}</th>
+            <th style="width:110px">NOTE</th><th class="c-x"></th></tr></thead>
+          <tbody></tbody>
+          <tfoot><tr><td></td><td colspan="3" class="amt" style="text-align:left" id="f_lines"></td><td class="amt" id="f_ctn"></td><td></td><td></td>
+            <td class="amt" id="f_qty"></td>{% if cost_on %}<td></td><td class="amt" id="f_val"></td>{% endif %}<td></td><td></td><td></td></tr></tfoot>
+        </table>
+      </div>
+      {% if dtype != 'CNT' %}<div class="doc-sum">
+        <div><small>Total cartons</small><b id="s_ctn">0</b></div>
+        <div><small>Total pieces</small><b id="s_pcs">0</b></div>
+        {% if show_cost %}<div class="cost"><small>Total cost value</small><b id="s_cost">0.00</b></div>
+        <div class="sale"><small>Total sale value</small><b id="s_sale">0.00</b></div>{% endif %}
+      </div>{% endif %}
+      <div class="qb-bottom">
+        <div class="qb-notes" style="max-width:none"><label>NOTES<input name="notes" value="{{ v('notes') }}"></label></div>
+      </div>
+      <div class="qb-buttons">
+        <button class="btn grey" name="action" value="save_new">Save &amp; New</button>
+        <button class="btn" name="action" value="save">Save {{ T.name|lower }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script id="itemdata" type="application/json">{{ items|tojson }}</script>
+<script id="rowdata" type="application/json">{{ rows|tojson }}</script>
+<script>
+(function () {
+  const T = {{ dtype|tojson }}, COST = {{ cost_on|tojson }};
+  const items = JSON.parse(document.getElementById('itemdata').textContent);
+  const byCode = {}, byBar = {};
+  items.forEach(i => { byCode[i.code] = i; if (i.barcode) byBar[i.barcode] = i; });
+  const find = c => byCode[String(c).trim().toUpperCase()] || byBar[String(c).trim()];
+  const body = document.querySelector('#grid tbody');
+  const wh = document.getElementById('wh');
+  const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? null : n; };
+  const q = n => (Math.round(n * 1000) / 1000).toLocaleString('en-US', {maximumFractionDigits: 3});
+  const money = n => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const have = it => it ? (it.wh[wh.value] || 0) : 0;
+
+  function addRow(d) {
+    d = d || {};
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="amt rn" style="text-align:center;color:var(--muted)"></td>
+      <td><input name="code" class="code" list="codes" value="${esc(d.code)}"></td>
+      <td class="amt desc" style="text-align:left"></td>
+      <td class="amt avail"></td>
+      <td><input name="ctn" class="r" value="${esc(d.ctn)}" inputmode="decimal"></td>
+      <td><input name="ppc" class="r ppc" value="${esc(d.ppc)}" inputmode="decimal" title="Pieces in one carton (change it if this lot has a different carton size)"></td>
+      <td><input name="loose" class="r" value="${esc(d.loose)}" inputmode="decimal"></td>
+      <td class="amt tot"></td>
+      ${COST ? `<td><input name="cost" class="r" value="${esc(d.cost)}" inputmode="decimal"></td><td class="amt val"></td>` : '<input type="hidden" name="cost" value="">'}
+      <td class="amt after"></td>
+      <td><input name="note" value="${esc(d.note)}"></td>
+      <td><button type="button" class="del" tabindex="-1">✕</button></td>`;
+    const code = tr.querySelector('[name=code]'), qty = tr.querySelector('[name=ctn]');
+    code.addEventListener('change', () => fill(tr));
+    code.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const it = find(code.value);
+      if (!it) { fill(tr); return; }
+      if (document.getElementById('scanmode').checked) {
+        const other = [...body.querySelectorAll('tr')].find(r => r !== tr && (find(r.querySelector('[name=code]').value) || {}).id === it.id);
+        if (other) { const oq = other.querySelector('[name=ctn]'); oq.value = (num(oq.value) || 0) + 1; code.value = ''; qty.value = ''; }
+        else { fill(tr); if (!qty.value) qty.value = 1; }
+        recalc(); ensure(); nextEmpty().querySelector('[name=code]').focus();
+      } else { fill(tr); qty.focus(); }
+    });
+    tr.querySelectorAll('input').forEach(i => {
+      i.addEventListener('input', () => { recalc(); ensure(); });
+      if (i.name !== 'code') i.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); (tr.nextElementSibling || addRow()).querySelector('[name=code]').focus(); }
+      });
+    });
+    tr.querySelector('.del').addEventListener('click', () => { tr.remove(); ensure(); recalc(); });
+    body.appendChild(tr);
+    fill(tr, true);
+    return tr;
+  }
+  function fill(tr, quiet) {
+    const code = tr.querySelector('[name=code]');
+    const it = find(code.value);
+    tr.dataset.item = it ? it.id : '';
+    if (it) {
+      code.value = it.code;
+      tr.querySelector('.desc').innerHTML = esc(it.desc) + (it.loc ? ` <span class="muted">· ${esc(it.loc)}</span>` : '');
+      const p = tr.querySelector('[name=ppc]');
+      if (!p.value) p.value = it.ppc || 1;
+      const c = tr.querySelector('[name=cost]');
+      if (COST && c && !c.value && it.cost && !quiet) c.value = it.cost;
+      code.classList.remove('bad');
+    } else {
+      tr.querySelector('.desc').innerHTML = code.value.trim() ? '<span class="red">Unknown item code</span>' : '';
+      code.classList.toggle('bad', !!code.value.trim());
+    }
+    recalc();
+  }
+  function isEmpty(tr) { return !tr.querySelector('[name=code]').value.trim() && !tr.querySelector('[name=ctn]').value.trim() && !tr.querySelector('[name=loose]').value.trim(); }
+  function pcsOf(tr) {
+    const c = num(tr.querySelector('[name=ctn]').value), l = num(tr.querySelector('[name=loose]').value);
+    if (c === null && l === null) return null;
+    return (c || 0) * (num(tr.querySelector('[name=ppc]').value) || 1) + (l || 0);
+  }
+  function nextEmpty() { return [...body.querySelectorAll('tr')].find(isEmpty) || addRow(); }
+  function ensure() {
+    const rows = [...body.querySelectorAll('tr')];
+    let b = 0; for (let k = rows.length - 1; k >= 0 && isEmpty(rows[k]); k--) b++;
+    for (; b < 3; b++) addRow();
+  }
+  function recalc() {
+    let lines = 0, tq = 0, tv = 0, n = 0, tc = 0, sc = 0, ss = 0;
+    const used = {}, cnt = {};  // stock already taken by earlier rows of the same item; counted so far (stock count)
+    body.querySelectorAll('tr').forEach(tr => {
+      n++; tr.querySelector('.rn').textContent = n;
+      const it = find(tr.querySelector('[name=code]').value);
+      const qv = pcsOf(tr);
+      const av = tr.querySelector('.avail'), af = tr.querySelector('.after'), tt = tr.querySelector('.tot');
+      tt.textContent = qv === null ? '' : q(qv);
+      tc += Math.abs(num(tr.querySelector('[name=ctn]').value) || 0);
+      if (!it) { av.textContent = ''; af.textContent = ''; if (COST) tr.querySelector('.val').textContent = ''; return; }
+      if (qv !== null && T !== 'CNT') {
+        const unit = COST ? (num(tr.querySelector('[name=cost]').value) || 0) : (num(it.cost) || 0);
+        sc += Math.abs(qv) * unit; ss += Math.abs(qv) * (num(it.price) || 0);
+      }
+      const base = T === 'CNT' ? have(it) : have(it) + (used[it.id] || 0);
+      av.textContent = q(base);
+      let after = base, diff = null;
+      if (qv !== null) {
+        lines++;
+        if (T === 'GRN' || T === 'OPN') after = base + qv;
+        else if (T === 'DC' || T === 'TRF') after = base - qv;
+        else if (T === 'ADJ') after = base + qv;
+        else if (T === 'CNT') { cnt[it.id] = (cnt[it.id] || 0) + qv; diff = cnt[it.id] - have(it); after = cnt[it.id]; }
+        if (T !== 'CNT') used[it.id] = (used[it.id] || 0) + (after - base);
+        tq += Math.abs(T === 'CNT' ? diff : qv);
+      }
+      if (T === 'CNT') {
+        af.textContent = diff === null ? '' : (diff > 0 ? '+' : '') + q(diff);
+        af.className = 'amt after ' + (diff > 0 ? 'pos' : (diff < 0 ? 'neg' : ''));
+      } else {
+        af.textContent = qv === null ? '' : q(after);
+        af.className = 'amt after ' + (after < 0 ? 'neg' : '');
+      }
+      if (COST) {
+        const c = num(tr.querySelector('[name=cost]').value) || 0;
+        const v = qv ? qv * c : 0; tv += v;
+        tr.querySelector('.val').textContent = v ? money(v) : '';
+      }
+    });
+    document.getElementById('f_lines').textContent = lines + ' line' + (lines === 1 ? '' : 's');
+    document.getElementById('f_qty').textContent = q(tq) + ' pcs';
+    document.getElementById('f_ctn').textContent = tc ? q(tc) + ' ctn' : '';
+    const S = id => document.getElementById(id);
+    if (S('s_ctn')) { S('s_ctn').textContent = q(tc); S('s_pcs').textContent = q(tq); }
+    if (S('s_cost')) { S('s_cost').textContent = money(sc); S('s_sale').textContent = money(ss); }
+    if (COST) document.getElementById('f_val').textContent = money(tv);
+  }
+  JSON.parse(document.getElementById('rowdata').textContent).forEach(addRow);
+  ensure(); recalc();
+  wh.addEventListener('change', () => { body.querySelectorAll('tr').forEach(tr => fill(tr, true)); });
+  const la = document.getElementById('loadall');
+  if (la) la.addEventListener('click', () => {
+    const present = new Set([...body.querySelectorAll('tr')].map(tr => tr.dataset.item).filter(Boolean));
+    [...body.querySelectorAll('tr')].filter(isEmpty).forEach(tr => tr.remove());
+    items.filter(it => !present.has(String(it.id)) && (it.wh[wh.value] || 0) !== 0).forEach(it => addRow({code: it.code}));
+    ensure(); recalc();
+  });
+  document.querySelectorAll('.qb-fields input, .qb-bar input, .qb-notes input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); }));
+  let dirty = false, sending = false;
+  document.getElementById('whform').addEventListener('input', () => dirty = true);
+  document.getElementById('whform').addEventListener('submit', () => sending = true);
+  window.addEventListener('beforeunload', e => { if (dirty && !sending) { e.preventDefault(); e.returnValue = ''; } });
+  const firstEmpty = [...body.querySelectorAll('tr')].find(isEmpty);
+  if (firstEmpty && !{{ (rows|length > 0)|tojson }}) firstEmpty.querySelector('[name=code]').focus();
+})();
+</script>
+{% endblock %}

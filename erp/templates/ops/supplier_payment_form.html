@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Pay a supplier{% endblock %}
+{% block content %}
+<form method="post" class="card" style="max-width:760px">
+  {{ csrf_field() }}
+  <div class="form2">
+    <label class="wide">Supplier<select name="supplier_id" id="sup" required><option value="">— choose supplier —</option>
+      {% for s in sups %}<option value="{{ s.id }}" {{ 'selected' if f.supplier_id|string == s.id|string }}>{{ s.name }}</option>{% endfor %}</select></label>
+    <div class="wide" id="supinfo"></div>
+    {% if companies|length > 1 %}<label class="wide">Paid from (which company's cash / bank)<select name="company_id">{% for co in companies %}
+      <option value="{{ co.id }}" {{ 'selected' if (f.company_id or '')|string == co.id|string }}>{{ co.name }}</option>{% endfor %}</select></label>{% endif %}
+    <label>Amount paid<input name="amount" value="{{ f.amount or '' }}" required inputmode="decimal"></label>
+    <label>Date<input type="date" name="date" value="{{ f.date or today }}"></label>
+    <label>Method<select name="method">{% for m in methods %}<option {{ 'selected' if f.method == m }}>{{ m }}</option>{% endfor %}</select></label>
+    <label>Cheque / reference<input name="reference" value="{{ f.reference or '' }}"></label>
+    <label class="wide">Notes<input name="notes" value="{{ f.notes or '' }}"></label>
+  </div>
+  <p class="muted">Payments are applied to the supplier's oldest unpaid bills first.</p>
+  <button class="btn alt" name="action" value="save">Save payment</button>
+  <button class="btn grey" name="action" value="save_new">Save &amp; new</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const s = document.getElementById('sup'), box = document.getElementById('supinfo');
+  const fmt = n => Number(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  function load() {
+    if (!s.value) { box.innerHTML = ''; return; }
+    fetch('/api/supplier/' + s.value).then(r => r.json()).then(d => {
+      box.innerHTML = '<div class="flash info" style="margin:0 0 12px">We owe <b>&nbsp;' + fmt(d.balance) + '&nbsp;</b> · ' +
+        (d.open.length ? d.open.length + ' unpaid bill(s): ' + d.open.slice(0, 5).map(b => '#' + b.number + (b.bill_no ? ' (' + b.bill_no + ')' : '') + ' ' + fmt(b.open)).join(', ') : 'no unpaid bills') + '</div>';
+    });
+  }
+  s.addEventListener('change', load); load();
+})();
+</script>
+{% endblock %}

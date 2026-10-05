@@ -1,0 +1,2 @@
+{% macro void_banner(kind, ref_id) %}{% set vp = void_pending(kind, ref_id) %}{% if vp %}<div class="card" style="border-left:4px solid var(--warn)">{{ icon('clock', 16) }} <b>Void requested</b> by {{ vp.requested_name }} on {{ vp.requested_at[:16] }}{{ ': ' ~ vp.reason if vp.reason }}. Waiting for admin approval; nothing has changed yet.
+  {% if can('approve.voids') %}<a href="{{ url_for('ap.index') }}">Open approvals →</a>{% endif %}</div>{% endif %}{{ caller(vp) if caller }}{% endmacro %}

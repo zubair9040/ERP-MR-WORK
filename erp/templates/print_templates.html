@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Print templates{% endblock %}
+{% block actions %}<a class="btn light" href="{{ url_for('pd.editor') }}">{{ icon('print', 16) }} Print designer</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted" style="margin-top:0">Choose a style for each company. One click sets the <b>invoice, delivery challan and receipt</b> together, with that company's logo and colour.
+    You can then fine-tune anything in the Print designer.</p>
+  <div class="tpl-now">
+    <span><small>All companies</small><b>{{ names[all_current] if all_current in names else ('Custom' if all_current else 'Standard print') }}</b></span>
+    {% for c in companies %}<span><small>{{ c.name }} <span class="muted">{{ c.code }}</span></small><b>{{ names[current[c.id]] if current[c.id] in names else ('Custom' if current[c.id] else 'Standard print') }}</b></span>{% endfor %}
+  </div>
+</div>
+<div class="tpl-grid">
+  {% for k, label in names.items() %}
+  <div class="card tpl">
+    <a class="tpl-img" href="{{ url_for('pd.template_preview', name=k, co=companies[0].id if companies else None) }}" target="_blank" title="Open a full-size sample">
+      <img src="{{ url_for('static', filename='print_templates/' ~ k ~ '.png') }}" alt="{{ label }}" loading="lazy"></a>
+    <h3>{{ label }}</h3>
+    <p class="muted">{{ info[k] }}</p>
+    <form method="post" action="{{ url_for('pd.templates') }}" class="tpl-use">{{ csrf_field() }}<input type="hidden" name="preset" value="{{ k }}">
+      <select name="co">{% for c in companies %}<option value="{{ c.id }}">{{ c.name }} ({{ c.code }})</option>{% endfor %}<option value="0">All companies</option></select>
+      <button class="btn small">Use this</button></form>
+    <p class="tpl-links">Sample: {% for c in companies %}<a target="_blank" href="{{ url_for('pd.template_preview', name=k, co=c.id) }}">{{ c.code }}</a>{{ ' · ' if not loop.last }}{% endfor %}
+      · <a target="_blank" href="{{ url_for('pd.template_preview', name=k, doc='dc', co=companies[0].id if companies else None) }}">DC</a>
+      · <a target="_blank" href="{{ url_for('pd.template_preview', name=k, doc='receipt', co=companies[0].id if companies else None) }}">Receipt</a></p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

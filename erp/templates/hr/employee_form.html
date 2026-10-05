@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit ' ~ e.name if e else 'New employee' }}{% endblock %}
+{% macro v(key, default='') %}{{ f[key] if f and key in f else (e[key] if e and e[key] is not none else default) }}{% endmacro %}
+{% macro m(key) %}{{ f[key] if f and key in f else (e[key]|plain if e else '') }}{% endmacro %}
+{% block content %}
+<form method="post" class="card">
+  {{ csrf_field() }}
+  <h3>Personal</h3>
+  <div class="form3">
+    <label class="wide">Full name<input name="name" value="{{ v('name') }}" required autofocus></label>
+    <label>Employee code<input name="code" value="{{ v('code') }}" placeholder="Auto (E001…)"></label>
+    <label>Father name<input name="father_name" value="{{ v('father_name') }}"></label>
+    <label>CNIC<input name="cnic" value="{{ v('cnic') }}" placeholder="35202-1234567-1"></label>
+    <label>Phone<input name="phone" value="{{ v('phone') }}"></label>
+    <label>WhatsApp (for payslips)<input name="whatsapp" value="{{ v('whatsapp') }}" placeholder="0300 1234567"></label>
+  </div>
+  <h3>Job</h3>
+  <div class="form3">
+    <label>Designation<input name="designation" value="{{ v('designation') }}" placeholder="Salesman, Driver, Accountant…"></label>
+    <label>Department<input name="department" value="{{ v('department') }}" list="depts"></label>
+    <datalist id="depts">{% for d in depts %}<option value="{{ d }}">{% endfor %}</datalist>
+    <label>Joining date<input type="date" name="join_date" value="{{ v('join_date') }}"></label>
+  </div>
+  <h3>Salary</h3>
+  <div class="form3">
+    <label>Basic salary (monthly)<input name="basic" value="{{ m('basic') }}" inputmode="decimal" required></label>
+    <label>Allowances (monthly: fuel, mobile, food…)<input name="allowance" value="{{ m('allowance') }}" inputmode="decimal"></label>
+    <label>Paid by<select name="pay_method">{% for x in methods %}<option {{ 'selected' if v('pay_method', 'Cash') == x }}>{{ x }}</option>{% endfor %}</select></label>
+    <label>Bank name<input name="bank_name" value="{{ v('bank_name') }}"></label>
+    <label>Account / IBAN<input name="bank_account" value="{{ v('bank_account') }}"></label>
+    <div></div>
+  </div>
+  <h3>Status</h3>
+  <div class="form3">
+    <label>Leaving date (if left)<input type="date" name="leave_date" value="{{ v('leave_date') }}"></label>
+    <label class="wide">Notes<input name="notes" value="{{ v('notes') }}"></label>
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if not e or e.active }}> Working (include in salary sheets)</label>
+  </div>
+  <button class="btn">Save employee</button> {% if not e %}<button class="btn grey" name="next" value="new">Save &amp; New</button>{% endif %}
+  <a href="{{ url_for('hr.employee_view', eid=e.id) if e else url_for('hr.employees') }}">Cancel</a>
+</form>
+{% endblock %}

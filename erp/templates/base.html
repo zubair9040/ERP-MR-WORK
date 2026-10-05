@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" data-theme="{{ S.ui_theme or 'nova' }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %} · {{ S.company_name or 'ERP' }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=3">
+</head>
+<body>
+{% if g.user %}
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="{{ url_for('core.dashboard') }}">
+      {% set CUR = cur_company() %}
+      <span class="logo" {% if CUR %}style="background:{{ CUR.color }};font-size:{{ '11px' if CUR.code|length > 2 else '14px' }}"{% endif %}>{{ (CUR.code if CUR else S.company_name|initials)[:3] }}</span>
+      <span class="brand-text"><b>{{ CUR.name if CUR else S.company_name }}</b><small>{{ 'Company view' if CUR else ('All companies' if all_companies()|length > 1 else 'Business Suite') }}</small></span>
+    </a>
+    {% set ep = request.endpoint or '' %}
+    <nav>
+      {% if is_store() %}
+      <div class="navhead">Warehouse</div>
+      <a href="{{ url_for('wh.home') }}" class="{{ 'on' if ep in ('wh.home', 'wh.card') }}">{{ icon('box') }}<span>Stock levels</span></a>
+      <a href="{{ url_for('wh.docs') }}" class="{{ 'on' if ep.startswith('wh.doc') }}">{{ icon('list') }}<span>Documents</span></a>
+      <a href="{{ url_for('wh.movements') }}" class="{{ 'on' if ep == 'wh.movements' }}">{{ icon('chart') }}<span>Movements</span></a>
+      <div class="navhead">New</div>
+      <a href="{{ url_for('wh.doc_new', dtype='GRN') }}">{{ icon('download') }}<span>Goods receipt</span></a>
+      <a href="{{ url_for('wh.doc_new', dtype='DC') }}">{{ icon('truck') }}<span>Goods issue (GIN)</span></a>
+      <a href="{{ url_for('wh.doc_new', dtype='TRF') }}">{{ icon('layers') }}<span>Transfer</span></a>
+      <a href="{{ url_for('wh.doc_new', dtype='CNT') }}">{{ icon('check') }}<span>Stock count</span></a>
+      {% else %}
+      {% if can('customers.view') or can('invoices.view') or can('payments.view') %}
+      <div class="navhead">Overview</div>
+      <a href="{{ url_for('core.dashboard') }}" class="{{ 'on' if ep == 'core.dashboard' }}">{{ icon('home') }}<span>Dashboard</span></a>{% endif %}
+      {% if can('customers.view') or can('invoices.view') or can('payments.view') or can('returns.view') or can('items.view') %}
+      <div class="navhead">Sales</div>
+      {% if can('customers.view') %}<a href="{{ url_for('sales.customers') }}" class="{{ 'on' if ep.startswith('sales.customer') }}">{{ icon('users') }}<span>Customers</span></a>{% endif %}
+      {% if can('invoices.view') %}<a href="{{ url_for('sales.invoices') }}" class="{{ 'on' if ep.startswith('sales.invoice') }}">{{ icon('invoice') }}<span>Invoices</span></a>{% endif %}
+      {% if can('invoices.view') %}<a href="{{ url_for('po.index') }}" class="{{ 'on' if ep.startswith('po.') }}">{{ icon('layers') }}<span>PO batch billing</span></a>{% endif %}
+      {% if can('payments.view') %}<a href="{{ url_for('sales.payments') }}" class="{{ 'on' if ep.startswith('sales.payment') }}">{{ icon('wallet') }}<span>Collections</span></a>{% endif %}
+      {% if can('invoices.view') or can('payments.view') %}<a href="{{ url_for('sales.transactions') }}" class="{{ 'on' if ep == 'sales.transactions' }}">{{ icon('list') }}<span>All transactions</span></a>{% endif %}
+      {% if can('approve.voids') %}{% set pc = pending_count() %}<a href="{{ url_for('ap.index') }}" class="{{ 'on' if ep.startswith('ap.') }}">{{ icon('shield') }}<span>Void approvals</span>{% if pc %}<em class="nav-badge">{{ pc }}</em>{% endif %}</a>
+      {% elif can('invoices.void') or can('payments.void') %}<a href="{{ url_for('ap.index') }}" class="{{ 'on' if ep.startswith('ap.') }}">{{ icon('shield') }}<span>My void requests</span></a>{% endif %}
+      {% if can('returns.view') %}<a href="{{ url_for('ops.credit_notes') }}" class="{{ 'on' if 'credit' in ep }}">{{ icon('return') }}<span>Returns</span></a>{% endif %}
+      {% if can('items.view') %}<a href="{{ url_for('sales.items') }}" class="{{ 'on' if ep.startswith('sales.item') }}">{{ icon('tag') }}<span>Items</span></a>{% endif %}
+      {% endif %}
+      {% if can('warehouse.view') %}
+      <div class="navhead">Warehouse</div>
+      <a href="{{ url_for('wh.home') }}" class="{{ 'on' if ep in ('wh.home', 'wh.card') }}">{{ icon('box') }}<span>Stock levels</span></a>
+      <a href="{{ url_for('wh.docs') }}" class="{{ 'on' if ep.startswith('wh.doc') }}">{{ icon('list') }}<span>Stock documents</span></a>
+      <a href="{{ url_for('wh.movements') }}" class="{{ 'on' if ep == 'wh.movements' }}">{{ icon('chart') }}<span>Movements</span></a>
+      {% if can('warehouse.manage') %}<a href="{{ url_for('wh.warehouses') }}" class="{{ 'on' if ep == 'wh.warehouses' }}">{{ icon('home') }}<span>Warehouses</span></a>{% endif %}
+      {% endif %}
+      {% if can('purchases.view') or can('supplier_payments.view') or can('expenses.view') %}
+      <div class="navhead">Purchasing</div>
+      {% if can('purchases.view') %}<a href="{{ url_for('ops.suppliers') }}" class="{{ 'on' if ep.startswith('ops.supplier') and 'payment' not in ep }}">{{ icon('truck') }}<span>Suppliers</span></a>
+      <a href="{{ url_for('ops.purchases') }}" class="{{ 'on' if ep.startswith('ops.purchase') }}">{{ icon('invoice') }}<span>Purchase bills</span></a>{% endif %}
+      {% if can('supplier_payments.view') %}<a href="{{ url_for('ops.supplier_payments') }}" class="{{ 'on' if 'supplier_payment' in ep }}">{{ icon('send') }}<span>Pay suppliers</span></a>{% endif %}
+      {% if can('expenses.view') %}<a href="{{ url_for('ops.expenses') }}" class="{{ 'on' if ep.startswith('ops.expense') }}">{{ icon('cash') }}<span>Expenses</span></a>{% endif %}
+      {% endif %}
+      {% if hr_allowed() %}<div class="navhead">Salary</div>
+      <a href="{{ url_for('hr.home') }}" class="{{ 'on' if ep in ('hr.home', 'hr.sheet', 'hr.report') }}">{{ icon('calendar') }}<span>Salary sheets</span></a>
+      <a href="{{ url_for('hr.employees') }}" class="{{ 'on' if ep.startswith('hr.employee') }}">{{ icon('users') }}<span>Employees</span></a>
+      <a href="{{ url_for('hr.advances') }}" class="{{ 'on' if ep == 'hr.advances' }}">{{ icon('wallet') }}<span>Advances &amp; loans</span></a>{% endif %}
+      {% if can('statements.send') or can('reports.sales') or can('reports.finance') or can('invoices.send') %}
+      <div class="navhead">Insights</div>
+      {% if can('statements.send') %}<a href="{{ url_for('reports.month_end') }}" class="{{ 'on' if ep == 'reports.month_end' }}">{{ icon('calendar') }}<span>Month-end</span></a>{% endif %}
+      {% if can('reports.sales') or can('reports.finance') %}<a href="{{ url_for('reports.index') }}" class="{{ 'on' if ep.startswith('reports.') and ep not in ('reports.month_end','reports.messages') }}">{{ icon('chart') }}<span>Reports</span></a>{% endif %}
+      <a href="{{ url_for('reports.messages') }}" class="{{ 'on' if ep == 'reports.messages' }}">{{ icon('whatsapp') }}<span>Messages log</span></a>
+      {% endif %}
+      {% if can('admin.settings') or can('admin.users') or can('admin.import') %}
+      <div class="navhead">Admin</div>
+      {% if can('admin.users') %}<a href="{{ url_for('core.users') }}" class="{{ 'on' if ep in ('core.users', 'core.user_form') }}">{{ icon('shield') }}<span>Users</span></a>
+      <a href="{{ url_for('core.roles') }}" class="{{ 'on' if ep.startswith('core.role') }}">{{ icon('key') }}<span>Roles &amp; permissions</span></a>{% endif %}
+      {% if can('admin.settings') %}
+      <a href="{{ url_for('core.reps') }}" class="{{ 'on' if ep == 'core.reps' }}">{{ icon('rep') }}<span>Sales reps</span></a>
+      <a href="{{ url_for('co.manage') }}" class="{{ 'on' if ep == 'co.manage' }}">{{ icon('layers') }}<span>Companies</span></a>
+      <a href="{{ url_for('pd.templates') }}" class="{{ 'on' if ep.startswith('pd.template') }}">{{ icon('layers') }}<span>Print templates</span></a>
+      <a href="{{ url_for('pd.editor') }}" class="{{ 'on' if ep in ('pd.editor',) }}">{{ icon('print') }}<span>Print designer</span></a>
+      <a href="{{ url_for('core.settings_page') }}" class="{{ 'on' if ep == 'core.settings_page' }}">{{ icon('settings') }}<span>Settings</span></a>{% endif %}
+      {% if can('admin.import') %}<a href="{{ url_for('importer.index') }}" class="{{ 'on' if ep.startswith('importer.') }}">{{ icon('import') }}<span>Import data</span></a>{% endif %}
+      {% endif %}
+      {% endif %}
+    </nav>
+    <div class="me">
+      <span class="avatar">{{ g.user.name|initials }}</span>
+      <div class="me-text"><b>{{ g.user.name }}</b><small>{{ role_name() }}</small></div>
+      <a href="{{ url_for('core.change_password') }}" title="Change password" class="me-btn">{{ icon('key', 16) }}</a>
+      <form method="post" action="{{ url_for('core.logout') }}">{{ csrf_field() }}<button class="me-btn" title="Log out">{{ icon('logout', 16) }}</button></form>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="tb-title"><h1>{{ self.title() }}</h1></div>
+      {% if all_companies()|length > 1 and not is_store() %}{% set CC = cur_company() %}
+      <div class="cosel" id="cosel">
+        <button type="button" class="cosel-btn" aria-haspopup="listbox" aria-expanded="false" title="Choose company">
+          {% if CC and co_logo(CC.id) %}<img src="{{ co_logo(CC.id) }}" alt="">{% else %}<i style="background:{{ CC.color if CC else 'linear-gradient(135deg,#6366f1,#10b981)' }}"></i>{% endif %}
+          <span><b>{{ CC.name if CC else 'All companies' }}</b><small>{{ (CC.code ~ ' · ' ~ ('GST' if CC.gst_registered else 'non-GST')) if CC else 'Combined view' }}</small></span>
+          <svg class="chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="cosel-menu" role="listbox">
+          <div class="cosel-search">{{ icon('search', 15) }}<input type="text" placeholder="Search…" aria-label="Search companies"></div>
+          <a href="{{ url_for('co.switch', cid=0, next=request.full_path) }}" class="opt {{ 'on' if not CC }}" data-name="all companies combined">
+            <i style="background:linear-gradient(135deg,#6366f1,#10b981)"></i><span><b>All companies</b><small>Everything together, live</small></span>{{ icon('check', 16) }}</a>
+          {% for c in all_companies() %}
+          <a href="{{ url_for('co.switch', cid=c.id, next=request.full_path) }}" class="opt {{ 'on' if CC and CC.id == c.id }}" data-name="{{ (c.name ~ ' ' ~ c.code)|lower }}">
+            {% if co_logo(c.id) %}<img src="{{ co_logo(c.id) }}" alt="">{% else %}<i style="background:{{ c.color }}"></i>{% endif %}
+            <span><b>{{ c.name }}</b><small>{{ c.code }} · {{ 'GST' if c.gst_registered else 'non-GST' }}{{ ' · NTN ' ~ c.ntn if c.ntn }}</small></span>{{ icon('check', 16) }}</a>
+          {% endfor %}
+          {% if can('admin.settings') %}<a href="{{ url_for('co.manage') }}#add" class="cosel-add">{{ icon('plus', 15) }} Add company</a>{% endif %}
+        </div>
+      </div>{% endif %}
+      {% if is_store() or request.endpoint.startswith('wh.') %}
+      <form class="gsearch" action="{{ url_for('wh.home') }}">{{ icon('search', 16) }}<input name="q" placeholder="Search stock (code, barcode)…" aria-label="Search stock"></form>
+      {% elif request.endpoint.startswith('hr.') %}
+      <form class="gsearch" action="{{ url_for('hr.employees') }}">{{ icon('search', 16) }}<input name="q" placeholder="Search employees…" aria-label="Search employees"></form>
+      {% elif can('customers.view') or can('invoices.view') or can('payments.view') %}
+      <form class="gsearch wide" action="{{ url_for('sales.search') }}">{{ icon('search', 16) }}<input name="q" value="{{ request.args.q if request.endpoint == 'sales.search' else '' }}" placeholder="Search customers, invoice / receipt no., cheque, PO, amount…" aria-label="Search everything"></form>
+      {% endif %}
+      <div class="actions">
+        {% block actions %}{% endblock %}
+        {% if (is_store() or request.endpoint.startswith('wh.')) and can('warehouse.work') %}
+        <a class="btn" href="{{ url_for('wh.doc_new', dtype='GRN') }}">{{ icon('download', 16) }} Receive</a>
+        <a class="btn alt" href="{{ url_for('wh.doc_new', dtype='DC') }}">{{ icon('truck', 16) }} Issue (GIN)</a>
+        {% elif request.endpoint.startswith('hr.') or is_store() or request.endpoint.startswith('wh.') %}
+        {% else %}
+        {% if can('invoices.create') %}<a class="btn" href="{{ url_for('sales.invoice_new') }}">{{ icon('plus', 16) }} Invoice</a>{% endif %}
+        {% if can('payments.create') %}<a class="btn alt" href="{{ url_for('sales.payment_new') }}">{{ icon('cash', 16) }} Collection</a>{% endif %}
+        {% endif %}
+      </div>
+    </header>
+    {% if S.wa_dry_run == '1' and not is_store() and not request.endpoint.startswith('wh.') %}<div class="banner">{{ icon('alert', 16) }} <span>WhatsApp is in <b>test mode</b>: PDFs are created but nothing is sent to customers.{% if can('settings') %} <a href="{{ url_for('core.settings_page') }}">Turn it on in Settings</a>.{% endif %}</span></div>{% endif %}
+    {% with msgs = get_flashed_messages(with_categories=true) %}{% for c, m in msgs %}<div class="flash {{ c }}">{{ icon('check' if c == 'ok' else ('alert' if c == 'err' else 'chat'), 16) }}<span>{{ m }}</span></div>{% endfor %}{% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+<div class="solo">
+  <div class="solo-art">
+    <div class="art-inner">
+      <span class="logo big">{{ S.company_name|initials }}</span>
+      <h2>{{ S.company_name }}</h2>
+      <p>Invoices, payments, statements and WhatsApp, all in one place.</p>
+      <ul><li>{{ icon('invoice', 16) }} Fast invoice entry</li><li>{{ icon('wallet', 16) }} FIFO &amp; bill-wise payments</li><li>{{ icon('whatsapp', 16) }} Statements on WhatsApp</li></ul>
+    </div>
+  </div>
+  <div class="solo-form">
+    {% with msgs = get_flashed_messages(with_categories=true) %}{% for c, m in msgs %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}{% endwith %}
+    {% block solo %}{% endblock %}
+  </div>
+</div>
+{% endif %}
+<script>
+(function () {  // keep the left menu where it was when a new page opens
+  const nav = document.querySelector('.side nav'); if (!nav) return;
+  try { const y = sessionStorage.getItem('navY'); if (y) nav.scrollTop = +y; } catch (e) {}
+  const on = nav.querySelector('a.on');
+  if (on && (on.offsetTop < nav.scrollTop || on.offsetTop > nav.scrollTop + nav.clientHeight - 40)) nav.scrollTop = on.offsetTop - nav.clientHeight / 2;
+  const save = () => { try { sessionStorage.setItem('navY', nav.scrollTop); } catch (e) {} };
+  nav.addEventListener('scroll', save); window.addEventListener('beforeunload', save);
+})();
+</script>
+<script>
+(function () {
+  const box = document.getElementById('cosel'); if (!box) return;
+  const btn = box.querySelector('.cosel-btn'), inp = box.querySelector('.cosel-search input');
+  const open = v => { box.classList.toggle('open', v); btn.setAttribute('aria-expanded', v); if (v) { inp.value = ''; filter(); setTimeout(() => inp.focus(), 20); } };
+  const filter = () => { const t = inp.value.trim().toLowerCase(); box.querySelectorAll('.opt').forEach(o => o.style.display = !t || o.dataset.name.includes(t) ? '' : 'none'); };
+  btn.addEventListener('click', () => open(!box.classList.contains('open')));
+  inp.addEventListener('input', filter);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { const f = [...box.querySelectorAll('.opt')].find(o => o.style.display !== 'none'); if (f) location = f.href; } });
+  document.addEventListener('click', e => { if (!box.contains(e.target)) open(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') open(false); });
+})();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

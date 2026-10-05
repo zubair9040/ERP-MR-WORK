@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Sales reps{% endblock %}
+{% block content %}
+<div class="card">
+<table><tr><th>Code</th><th>Name</th><th>Phone</th><th class="n">Customers</th><th>Status</th><th></th></tr>
+{% for r in reps %}
+  {% if edit == r.id %}
+  <tr><td colspan="6"><form method="post" class="rowform">{{ csrf_field() }}<input type="hidden" name="id" value="{{ r.id }}">
+    <input name="code" value="{{ r.code }}" required size="5"><input name="name" value="{{ r.name }}" required>
+    <input name="phone" value="{{ r.phone }}" placeholder="Phone">
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if r.active }}> Active</label>
+    <button class="btn">Save</button> <a href="{{ url_for('core.reps') }}">Cancel</a></form></td></tr>
+  {% else %}
+  <tr><td><b>{{ r.code }}</b></td><td>{{ r.name }}</td><td>{{ r.phone }}</td><td class="n">{{ r.customers }}</td>
+    <td>{{ 'Active' if r.active else 'Inactive' }}</td><td class="n"><a href="?edit={{ r.id }}">Edit</a></td></tr>
+  {% endif %}
+{% else %}<tr><td colspan="6" class="muted">No sales reps yet.</td></tr>{% endfor %}
+</table></div>
+<div class="card"><h3>Add sales rep</h3>
+<form method="post" class="rowform">{{ csrf_field() }}
+  <input name="code" placeholder="Code e.g. AK" required size="6"><input name="name" placeholder="Full name" required>
+  <input name="phone" placeholder="Phone"><input type="hidden" name="active" value="1">
+  <button class="btn">Add</button></form>
+<p class="muted">To let a rep sign in, create a user with the "Sales rep" role and link it here (Users page).</p></div>
+{% endblock %}

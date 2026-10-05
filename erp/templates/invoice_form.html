@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% from "_history.html" import history_card %}
+{% block title %}{{ 'Invoice ' ~ inv.number if inv else 'Create invoice' }}{% endblock %}
+{% macro v(key, default='') %}{{ f[key] if f and f.get(key) is not none and key in f else (inv[key] if inv and inv[key] is not none else default) }}{% endmacro %}
+{% block actions %}{% endblock %}
+{% block content %}
+<div class="qb-toolbar">
+  <a class="tb" href="{{ url_for('sales.invoice_go', direction='prev', **({'from': inv.id} if inv else {})) }}" title="Previous invoice" {{ 'aria-disabled=true' if not prev_id }}>{{ icon('left', 16) }} <span>Prev</span></a>
+  <a class="tb" href="{{ url_for('sales.invoice_go', direction='next', **({'from': inv.id} if inv else {})) }}" title="Next invoice" {{ 'aria-disabled=true' if not next_id }}><span>Next</span> {{ icon('right', 16) }}</a>
+  <span class="sep"></span>
+  <a class="tb" href="{{ url_for('sales.invoice_new') }}">{{ icon('plus', 16) }} <span>New</span></a>
+  <button class="tb" form="invform" name="action" value="save">{{ icon('save', 16) }} <span>Save</span></button>
+  {% if inv %}
+  <a class="tb" target="_blank" href="{{ url_for('sales.invoice_pdf', iid=inv.id) }}">{{ icon('print', 16) }} <span>Print / PDF</span></a>
+  <a class="tb" target="_blank" href="{{ url_for('sales.invoice_dc_pdf', iid=inv.id) }}" title="Delivery challan on a separate A4 page (no prices)">{{ icon('truck', 16) }} <span>Print DC</span></a>
+  <button class="tb wa" form="waform" {% if sent %}onclick="return confirm('Already sent on {{ sent }}. Send again?')"{% endif %}>{{ icon('whatsapp', 16) }} <span>WhatsApp</span></button>
+  <button class="tb" form="emailform" title="Email the invoice PDF to the customer's email address">{{ icon('send', 16) }} <span>Email</span></button>
+  <span class="sep"></span>
+  <a class="tb" href="{{ url_for('sales.payment_new', customer_id=inv.customer_id) }}">{{ icon('cash', 16) }} <span>Collection</span></a>
+  <button class="tb {{ 'ok' if inv.delivered_on else 'warn' }}" form="delform" title="{{ 'Delivered ' ~ (inv.delivered_on|d) ~ ' by ' ~ inv.delivered_by ~ '. Click to mark NOT delivered.' if inv.delivered_on else 'Click when the goods have been delivered' }}"
+    {% if inv.delivered_on %}onclick="return confirm('Mark this invoice as NOT delivered?')"{% endif %}>
+    {{ icon('check' if inv.delivered_on else 'clock', 16) }} <span>{{ 'Delivered ' ~ (inv.delivered_on|d)[:6] if inv.delivered_on else 'Not delivered' }}</span></button>
+  <details class="tb-menu"><summary class="tb">{{ icon('list', 16) }} <span>Statement</span></summary>
+    <div class="menu r">
+      <a target="_blank" href="{{ url_for('sales.statement_pdf', cid=inv.customer_id, **{'from': '2000-01-01', 'to': today, 'details': '1'}) }}">{{ icon('pdf', 14) }} All activity · PDF</a>
+      <a href="{{ url_for('sales.statement_xlsx', cid=inv.customer_id, **{'from': '2000-01-01', 'to': today, 'details': '1'}) }}">{{ icon('excel', 14) }} All activity · Excel</a>
+      <a target="_blank" href="{{ url_for('sales.statement_pdf', cid=inv.customer_id, mode='open') }}">{{ icon('pdf', 14) }} Unpaid bills only · PDF</a>
+      <a href="{{ url_for('sales.statement_xlsx', cid=inv.customer_id, mode='open') }}">{{ icon('excel', 14) }} Unpaid bills only · Excel</a>
+      <a href="{{ url_for('sales.customer_view', cid=inv.customer_id) }}">{{ icon('users', 14) }} Customer account &amp; more options</a>
+    </div></details>
+  <a class="tb" href="#history" onclick="document.getElementById('history').scrollIntoView({behavior:'smooth'});return false">{{ icon('clock', 16) }} <span>History{% if hist and hist.rows %} ({{ hist.rows|length }}){% endif %}</span></a>
+  <a class="tb" href="{{ url_for('sales.invoice_view', iid=inv.id, summary=1) }}">{{ icon('more', 16) }} <span>More / Void</span></a>
+  {% else %}
+  <button class="tb" form="invform" name="action" value="save_print">{{ icon('print', 16) }} <span>Save &amp; Print</span></button>
+  <button class="tb" form="invform" name="action" value="save_dc">{{ icon('truck', 16) }} <span>Save &amp; Print DC</span></button>
+  <button class="tb wa" form="invform" name="action" value="save_wa">{{ icon('whatsapp', 16) }} <span>Save &amp; WhatsApp</span></button>
+  <button class="tb" form="invform" name="action" value="save_email">{{ icon('send', 16) }} <span>Save &amp; Email</span></button>
+  <span class="sep"></span>
+  <button class="tb" form="invform" name="action" value="save_pay">{{ icon('cash', 16) }} <span>Save &amp; collection</span></button>
+  {% endif %}
+  {% if batch %}<span class="sep"></span>
+  <button class="tb" form="invform" name="action" value="save_po" title="Save and go back to PO {{ batch.po_no }}">{{ icon('layers', 16) }} <span>Save &amp; back to PO</span></button>{% endif %}
+</div>
+{% if batch %}<div class="po-strip">{{ icon('layers', 16) }} Branch invoice for <b>PO {{ batch.po_no }}</b>.
+  <a href="{{ url_for('po.view', bid=batch.id) }}">Open the PO</a> to see all branches and make the combined invoice.</div>{% endif %}
+{% if inv %}<form id="delform" method="post" action="{{ url_for('sales.invoice_delivered', iid=inv.id) }}">{{ csrf_field() }}</form>{% endif %}
+{% if inv %}<form id="emailform" method="post" action="{{ url_for('sales.invoice_email', iid=inv.id) }}">{{ csrf_field() }}
+  <input type="hidden" name="back" value="{{ url_for('sales.invoice_form', iid=inv.id) }}"></form>{% endif %}
+{% if inv %}<form id="waform" method="post" action="{{ url_for('sales.invoice_send', iid=inv.id) }}">{{ csrf_field() }}
+  <input type="hidden" name="phone" id="waphone" value=""><input type="hidden" name="back" value="{{ url_for('sales.invoice_form', iid=inv.id) }}"></form>{% endif %}
+
+<form method="post" id="invform" autocomplete="off">
+{{ csrf_field() }}
+<div class="qb">
+  <div class="qb-main">
+    <div class="qb-bar">
+      <label>CUSTOMER
+        <select name="customer_id" id="customer" required>
+          <option value="">— choose customer —</option>
+          {% set multi = companies|length > 1 %}
+          {% for c in customers %}{% if not inv_company or c.company_id == inv_company.id %}<option value="{{ c.id }}" data-rep="{{ c.rep_id or '' }}" {{ 'selected' if v('customer_id')|string == c.id|string }}>{{ c.name }}{% if multi and not cur_company() and not inv_company %} · {% for co in companies if co.id == c.company_id %}{{ co.code }}{% endfor %}{% endif %}</option>{% endif %}{% endfor %}
+        </select></label>
+      {% if not is_rep() %}
+      <label>REP<select name="rep_id" id="rep"><option value="">—</option>
+        {% for r in reps %}<option value="{{ r.id }}" {{ 'selected' if v('rep_id')|string == r.id|string }}>{{ r.code }}</option>{% endfor %}</select></label>
+      {% endif %}
+    </div>
+    <div class="qb-doc">
+      <div class="qb-top">
+        <div class="qb-title">
+          <div class="big">{{ 'Invoice #' ~ inv.number if inv else 'New invoice' }}</div>
+          {% if companies|length > 1 %}<div class="inv-co" id="invco" {% if inv_company %}style="--c:{{ inv_company.color }}"{% endif %}>{% if inv_company %}{{ inv_company.name }} · {{ 'GST' if inv_company.gst_registered else 'non-GST' }}{% else %}Choose a customer{% endif %}</div>{% endif %}
+          {% if inv and cls == 'over' %}<div class="stamp due">PAST DUE</div>{% elif inv and cls == 'paid' %}<div class="stamp paid">PAID</div>{% endif %}
+        </div>
+        <div class="qb-fields">
+          <label>DATE<input type="date" name="date" value="{{ v('date', today) }}" required></label>
+          <label>INVOICE #<input name="number" value="{{ v('number', next_number) }}" {{ 'readonly' if is_rep() }} inputmode="numeric"></label>
+          <label class="span2">CUSTOMER NAME<textarea id="billto" rows="4" readonly tabindex="-1"></textarea></label>
+          <label class="span2">BILTI NO.<input name="bilti_no" value="{{ v('bilti_no') }}"></label>
+        </div>
+      </div>
+      <div class="qb-row2">
+        <label>VIA<input name="via" value="{{ v('via') }}" list="vias"></label>
+        <label>REF NO.<input name="ref_no" value="{{ v('ref_no') }}"></label>
+        <label>NO. OF CTN<input name="ctn_count" value="{{ v('ctn_count') }}"></label>
+        <label>PO NO.<input name="po_no" value="{{ v('po_no') }}" placeholder="Customer's PO"></label>
+        <label>DUE DATE<input type="date" name="due_date" value="{{ v('due_date') }}" title="Leave blank to use the customer's terms"></label>
+      </div>
+      <div class="qb-row2 qb-row3">
+        <label class="grow2">SHIP TO (BRANCH)<select name="branch_id" id="branch" data-sel="{{ v('branch_id') }}"><option value="">— head office / no branch —</option></select></label>
+        <label>COURIER<input name="courier" value="{{ v('courier') }}" list="couriers" placeholder="TCS, LCS…"></label>
+        <label>TRACKING NO.<input name="tracking_no" value="{{ v('tracking_no') }}"></label>
+        <input type="hidden" name="batch_id" value="{{ v('batch_id') }}">
+        <label class="dl-box">DELIVER TO <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">(only if different from the bill-to address; leave empty and it won't print)</span>
+          <textarea name="deliver_to" id="deliver_to" rows="3" placeholder="e.g. HBL Branch, Mall Road, Lahore">{{ v('deliver_to') }}</textarea></label>
+      </div>
+      <datalist id="couriers">{% for c in couriers %}<option value="{{ c.name }}">{% endfor %}</datalist>
+      <datalist id="vias">{% for x in vias %}<option value="{{ x }}">{% endfor %}</datalist>
+      <datalist id="itemcodes">{% for it in item_data %}<option value="{{ it.code }}">{{ it.name }}{{ ' · in stock ' ~ it.stock if it.stock != '' }}</option>{% endfor %}</datalist>
+
+      <div class="grid-wrap">
+      <table class="grid" id="grid">
+        <thead><tr><th class="c-qty">QTY</th><th class="c-um">U/M</th><th class="c-ctn">CTN QTY</th><th class="c-code">ITEM CODE</th>
+          <th>DESCRIPTION</th><th class="c-price">PRICE EACH</th><th class="c-amt">AMOUNT</th><th class="c-x"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+      <div class="imp-row"><label class="btn light small" for="impfile" title="Excel or CSV with columns: Item code, Qty, Price (optional: Description, U/M, CTN qty)">{{ icon('upload', 14) }} Import lines from Excel</label>
+        <input type="file" id="impfile" accept=".xlsx,.xls,.csv" style="display:none"> <a href="{{ url_for('sales.invoice_import_template') }}" class="muted" style="font-size:12.5px">Download sample file</a> <span id="impmsg" class="muted" style="font-size:12.5px"></span></div>
+      <p class="muted" style="margin:6px 0 0">Type an item code, press <b>Tab</b> to move across and <b>Enter</b> for the next line. Use <b>SUB TOTAL</b>, then a discount code like <b>5%</b> or type <b>-5%</b> in PRICE EACH.</p>
+
+      <div class="qb-bottom">
+        <div class="qb-notes">
+          <label>CUSTOMER MESSAGE <span class="muted">(printed)</span><input name="customer_message" value="{{ v('customer_message') }}" list="cmsgs"></label>
+          <datalist id="cmsgs">{% for x in cust_msgs %}<option value="{{ x }}">{% endfor %}</datalist>
+          <label>MEMO <span class="muted">(internal, not printed)</span><input name="notes" value="{{ v('notes') }}"></label>
+          <label class="inline">SALES TAX %<input name="tax_rate" id="taxrate" value="{{ f.tax_rate if f and f.tax_rate else ('%g'|format(inv.tax_rate) if inv else s.default_tax_rate) }}" size="4"></label>
+        </div>
+        <table class="qb-totals">
+          <tr id="taxrow"><td>SALES TAX</td><td>{{ cur }}</td><td class="n" id="t_tax">0.00</td></tr>
+          <tr><td>TOTAL</td><td>{{ cur }}</td><td class="n" id="t_total">0.00</td></tr>
+          <tr><td>PAYMENTS APPLIED</td><td>{{ cur }}</td><td class="n" id="t_paid">0.00</td></tr>
+          <tr class="bal"><td>BALANCE DUE</td><td>{{ cur }}</td><td class="n" id="t_bal">0.00</td></tr>
+        </table>
+      </div>
+      <div class="qb-buttons">
+        <button class="btn grey" name="action" value="save_close">Save &amp; Close</button>
+        <button class="btn" name="action" value="save_new">Save &amp; New</button>
+        <a class="btn light" href="{{ url_for('sales.invoice_form', iid=inv.id) if inv else url_for('sales.invoice_new') }}">Revert</a>
+      </div>
+    </div>
+  </div>
+  <aside class="qb-side" id="side">
+    <div class="side-name" id="s_name">No customer selected</div>
+    <div class="side-sec">SUMMARY</div>
+    <dl class="side-kv">
+      <dt>Open balance</dt><dd id="s_bal" class="red">—</dd>
+      <dt>Credit limit</dt><dd id="s_limit">—</dd>
+      <dt>Terms</dt><dd id="s_terms">—</dd>
+      <dt>WhatsApp</dt><dd id="s_wa">—</dd>
+    </dl>
+    <div class="side-sec">OPEN INVOICES</div>
+    <table class="side-list" id="s_open"></table>
+    <div class="side-sec">RECENT TRANSACTIONS</div>
+    <table class="side-list" id="s_recent"></table>
+    <p id="s_links" style="margin-top:10px"></p>
+  </aside>
+</div>
+</form>
+{% if inv and hist %}<div style="margin-top:16px">{{ history_card(inv, hist) }}</div>{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if inv and request.args.open in ('pdf', 'dc') %}{% set openurl = url_for('sales.invoice_dc_pdf', iid=inv.id) if request.args.open == 'dc' else url_for('sales.invoice_pdf', iid=inv.id) %}
+<div class="flash ok" id="openmsg" style="position:fixed;bottom:18px;right:18px;z-index:50">{{ icon('print', 16) }}<span>Saved. <a href="{{ openurl }}" target="_blank"><b>Open the {{ 'delivery challan' if request.args.open == 'dc' else 'invoice' }} to print</b></a></span></div>
+<script>(function () { const w = window.open({{ openurl|tojson }}, '_blank'); if (w) document.getElementById('openmsg').style.display = 'none';
+  history.replaceState(null, '', location.pathname); })();</script>{% endif %}
+<script id="itemdata" type="application/json">{{ item_data|tojson }}</script>
+<script id="griddata" type="application/json">{{ grid|tojson }}</script>
+<script id="invdata" type="application/json">{{ {'paid': ((inv.total - open_amt)/100 if inv else 0), 'id': inv.id if inv else None, 'multi': companies|length > 1}|tojson }}</script>
+<script src="{{ url_for('static', filename='invoice.js') }}?v=5"></script>
+{% endblock %}

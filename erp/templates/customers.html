@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Customers{% endblock %}
+{% block actions %}{% if can('reports.sales') %}<a class="btn grey" href="{{ url_for('reports.open_invoices') }}">{{ icon('list', 16) }} All unpaid bills</a>{% endif %}{% if can('customers.edit') %}<a class="btn grey" href="{{ url_for('sales.customer_form') }}">+ Add customer</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters" id="custfilters">
+  <label class="grow-s">Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Name, code, phone, address…"></label>
+  {% if not is_rep() %}
+  <details class="msel"><summary>Rep{% if reps_sel %} <b>({{ reps_sel|length }})</b>{% endif %}</summary><div class="msel-box">
+    {% for r in reps %}<label class="check"><input type="checkbox" name="rep" value="{{ r.id }}" {{ 'checked' if r.id in reps_sel }}> {{ r.code }} · {{ r.name }}</label>{% endfor %}
+  </div></details>{% endif %}
+  <details class="msel"><summary>City{% if cities_sel %} <b>({{ cities_sel|length }})</b>{% endif %}</summary><div class="msel-box">
+    {% for c_ in all_cities %}<label class="check"><input type="checkbox" name="city" value="{{ c_ }}" {{ 'checked' if c_ in cities_sel }}> {{ c_ }}</label>
+    {% else %}<span class="muted">No cities yet. Add the city on each customer.</span>{% endfor %}
+  </div></details>
+  <label>Sort<select name="sort">
+    {% for k, t in [('name', 'Name A → Z'), ('name_desc', 'Name Z → A'), ('bal_desc', 'Balance: highest first'), ('bal_asc', 'Balance: lowest first'), ('code', 'Customer code'), ('city', 'City')] %}
+    <option value="{{ k }}" {{ 'selected' if sort == k }}>{{ t }}</option>{% endfor %}</select></label>
+  <label class="check"><input type="checkbox" name="due" value="1" {{ 'checked' if request.args.due }}> With balance only</label>
+  <label class="check"><input type="checkbox" name="inactive" value="1" {{ 'checked' if request.args.inactive }}> Include inactive</label>
+  <button class="btn grey">Filter</button>
+  {% if filtered %}<a class="btn light clearf" href="{{ url_for('sales.customers') }}">✕ Clear filter</a>{% endif %}
+  {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+</form>
+{% if filtered %}<p class="muted" style="margin:-4px 0 10px;font-size:13px">Filter on: {{ rows|length }} customer(s) shown.{% if reps_sel %} Reps: {% for r in reps if r.id in reps_sel %}{{ r.code }}{{ ', ' if not loop.last }}{% endfor %}.{% endif %}{% if cities_sel %} Cities: {{ cities_sel|join(', ') }}.{% endif %}</p>{% endif %}
+<div class="tablewrap"><table>
+<tr><th>Code</th><th>Customer</th><th>City</th><th>Rep</th><th class="hide-sm">WhatsApp</th><th class="n">Balance</th><th></th></tr>
+{% for c in rows %}
+<tr><td class="muted nowrap">{{ c.code or '' }}</td><td><a href="{{ url_for('sales.customer_view', cid=c.id) }}"><b>{{ c.name }}</b></a>{% if all_companies()|length > 1 and not cur_company() %} {{ co_tag(c.company_id) }}{% endif %}{% if not c.active %} <span class="tag">inactive</span>{% endif %}
+  {% if c.contact %}<div class="muted">{{ c.contact }}</div>{% endif %}</td>
+  <td>{{ c.city or '' }}</td><td>{{ c.rep_code or '' }}</td><td class="hide-sm">{{ c.whatsapp or '' }}{% if not c.whatsapp %}<span class="muted">none</span>{% endif %}</td>
+  <td class="n">{{ c.balance|money }}{% if c.credit_limit and c.balance > c.credit_limit %} <span class="tag over">over limit</span>{% endif %}</td>
+  <td class="n nowrap">
+    {% if c.whatsapp %}
+    <form method="post" action="{{ url_for('sales.customer_whatsapp', cid=c.id, what='balance') }}" class="inl">{{ csrf_field() }}
+      <input type="hidden" name="back" value="{{ request.full_path }}"><button class="btn wa small" title="Send balance on WhatsApp">{{ icon('whatsapp', 14) }} Balance</button></form>
+    <form method="post" action="{{ url_for('sales.customer_whatsapp', cid=c.id, what='statement') }}" class="inl">{{ csrf_field() }}
+      <input type="hidden" name="back" value="{{ request.full_path }}"><button class="btn wa small" title="{{ 'Unpaid bills only' if c.statement_mode == 'open' else 'Statement from the 1st of last month' }}">{{ icon('whatsapp', 14) }} {{ 'Unpaid bills' if c.statement_mode == 'open' else 'Statement' }}</button></form>
+    {% endif %}
+    {% if c.email %}
+    <form method="post" action="{{ url_for('sales.customer_whatsapp', cid=c.id, what='email_statement') }}" class="inl">{{ csrf_field() }}
+      <input type="hidden" name="back" value="{{ request.full_path }}"><button class="btn light small" title="Email {{ 'unpaid bills' if c.statement_mode == 'open' else 'statement' }} to {{ c.email }}">{{ icon('send', 14) }} Email</button></form>
+    {% endif %}
+    <a href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">Invoice</a> · <a href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Collection</a></td></tr>
+{% else %}<tr><td colspan="7" class="muted">No customers found.</td></tr>{% endfor %}
+<tr class="total"><td colspan="4">{{ rows|length }} customers</td><td class="hide-sm"></td><td class="n">{{ cur }} {{ total|money }}</td><td></td></tr>
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Expenses{% endblock %}
+{% block content %}
+<div class="grid2" style="grid-template-columns:1fr 2fr">
+  <form method="post" action="{{ url_for('ops.expense_new') }}" class="card">
+    {{ csrf_field() }}
+    <h3>{{ icon('plus', 16) }} Add expense</h3>
+    <label>Category<input name="category" list="cats" required placeholder="Rent, fuel, electricity… (salaries go in Salary)"></label>
+    <datalist id="cats">{% for c in (cats + ['Rent', 'Electricity', 'Fuel', 'Transport / cartage', 'Packing material', 'Office supplies', 'Mobile & internet', 'Repairs', 'Entertainment', 'Bank charges'])|unique %}<option value="{{ c }}">{% endfor %}</datalist>
+    <label>Amount<input name="amount" required inputmode="decimal"></label>
+    <div class="form2"><label>Date<input type="date" name="date" value="{{ today }}"></label>
+      <label>Paid by<select name="method">{% for m in methods %}<option>{{ m }}</option>{% endfor %}</select></label></div>
+    <label>Paid to<input name="payee"></label>
+    {% if companies|length > 1 %}<label>Paid by company<select name="company_id">{% for co in companies %}<option value="{{ co.id }}" {{ 'selected' if co.id == default_co }}>{{ co.name }}</option>{% endfor %}</select></label>{% endif %}
+    <label>Reference / note<input name="reference"></label>
+    <button class="btn wide">Save expense</button>
+  </form>
+  <div class="card">
+    <form class="filters">
+      <label>From<input type="date" name="from" value="{{ start }}"></label><label>To<input type="date" name="to" value="{{ end }}"></label>
+      <label>Category<select name="category"><option value="">All</option>{% for c in cats %}<option {{ 'selected' if request.args.category == c }}>{{ c }}</option>{% endfor %}</select></label>
+      <button class="btn grey">Show</button>
+      {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+      <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+    </form>
+    <div class="tablewrap"><table>
+    <tr><th>Date</th><th>Category</th><th>Paid to</th><th>Method</th><th class="n">Amount</th><th></th></tr>
+    {% for e in rows %}<tr class="{{ 'voided' if e.void }}"><td>{{ e.date|d }}</td><td>{{ e.category }}{% if all_companies()|length > 1 and not cur_company() %} {{ co_tag(e.company_id) }}{% endif %}</td><td>{{ e.payee }}{% if e.reference %} <span class="muted">{{ e.reference }}</span>{% endif %}</td>
+      <td>{{ e.method }}</td><td class="n">{{ e.amount|money }}</td>
+      <td class="n">{% if not e.void %}<form method="post" action="{{ url_for('ops.expense_void', eid=e.id) }}" class="inl" onsubmit="return confirm('Void this expense?')">{{ csrf_field() }}<button class="link">void</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="6" class="muted">No expenses in this period.</td></tr>{% endfor %}
+    <tr class="total"><td colspan="4">{{ rows|length }} expenses</td><td class="n">{{ cur }} {{ total|money }}</td><td></td></tr>
+    </table></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Salary sheet · {{ label }}{% endblock %}
+{% block actions %}{% set qs = request.query_string.decode() %}
+  <a class="btn grey" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn grey" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+  {% if run.status == 'final' %}<a class="btn grey" target="_blank" href="{{ url_for('hr.slips_pdf', month=run.month) }}">{{ icon('print', 16) }} All payslips</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% set final = run.status == 'final' %}
+<div class="sal-bar">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <a class="btn light small" href="{{ url_for('hr.sheet', month=prev) }}" title="Previous month">{{ icon('left', 14) }}</a>
+    <h2 style="margin:0">{{ label }}</h2>
+    <a class="btn light small" href="{{ url_for('hr.sheet', month=next_) }}" title="Next month">{{ icon('right', 14) }}</a>
+    {% if final %}{% if t.paid >= t.net %}<span class="tag paid">final · all paid</span>{% else %}<span class="tag open">final</span>{% endif %}{% else %}<span class="tag">draft</span>{% endif %}
+    <span class="muted">{{ rows|length }} employees · {{ run.days }} days · overtime at {{ '%g'|format(mult) }}× hourly rate ({{ '%g'|format(hours) }} hrs/day)</span>
+  </div>
+  <div class="muted">{% if not final %}Type absents, overtime hours, bonus and deductions. Totals update as you type.
+    {% if S.allowance_absent_limit and S.allowance_absent_limit|float > 0 %}<b>Rule:</b> month = {{ run.days }} days; basic is paid for the days present (basic ÷ 30 × present); the allowance is paid in full up to {{ S.allowance_absent_limit }} absent days, and from the next absent day it is also paid for the days present only.{% endif %}{% else %}Finalised {{ run.finalized_at }}.{% endif %}</div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="k"><span class="chip">{{ icon('cash', 16) }}</span> Gross salary</div><div class="v"><small>{{ cur }}</small><span id="tGross">{{ t.gross|money }}</span></div>
+    <div class="muted">Overtime {{ t.ot_amount|money }} · bonus {{ t.bonus|money }}</div></div>
+  <div class="stat s-bad"><div class="k"><span class="chip">{{ icon('return', 16) }}</span> Deductions</div><div class="v"><small>{{ cur }}</small><span id="tDed">{{ (t.absent_ded + t.loan_ded + t.advance_ded + t.other_ded)|money }}</span></div>
+    <div class="muted">Absent {{ t.absent_ded|money }} · loans {{ t.loan_ded|money }} · advances {{ t.advance_ded|money }}</div></div>
+  <div class="stat"><div class="k"><span class="chip">{{ icon('wallet', 16) }}</span> Net pay</div><div class="v"><small>{{ cur }}</small><span id="tNet">{{ t.net|money }}</span></div>
+    <div class="muted">What employees take home</div></div>
+  <div class="stat s-ok"><div class="k"><span class="chip">{{ icon('check', 16) }}</span> Paid</div><div class="v"><small>{{ cur }}</small>{{ t.paid|money }}</div>
+    <div class="muted">{% if final %}Unpaid {{ (t.net - t.paid)|money }}{% else %}Finalise the sheet, then pay{% endif %}</div></div>
+</div>
+
+{% if not final %}
+<form method="post" class="card" id="sheet">
+  {{ csrf_field() }}
+  <div class="grid-wrap"><table class="grid sal">
+    <thead><tr><th>Employee</th><th class="n">Basic</th><th class="n">Allowance</th><th class="n">Absent days</th><th class="n">Absent ded.</th>
+      <th class="n">OT hrs</th><th class="n">Overtime</th><th class="n">Bonus</th><th class="n">Gross</th><th class="n">Loan instalment</th>
+      <th class="n">Advance</th><th class="n">Other ded.</th><th class="n">Net pay</th><th>Note</th></tr></thead>
+    <tbody>
+    {% for r in rows %}{% set l = r.l %}
+    <tr data-b="{{ l.basic }}">
+      <td class="nm"><a href="{{ url_for('hr.employee_view', eid=l.employee_id) }}"><b>{{ l.name }}</b></a><div class="muted" style="font-size:12px">{{ l.code }} · {{ l.designation }}</div>
+        <input type="hidden" name="line_id" value="{{ l.id }}"></td>
+      <td class="n calc">{{ l.basic|money }}</td>
+      <td><input class="r" name="allowance" value="{{ l.allowance|plain if l.allowance else '' }}" inputmode="decimal" data-k="al"></td>
+      <td><input class="r w-s" name="absent_days" value="{{ '%g'|format(l.absent_days) if l.absent_days else '' }}" inputmode="decimal" data-k="ab"></td>
+      <td class="n calc" data-o="abd">{{ l.absent_ded|money }}</td>
+      <td><input class="r w-s" name="ot_hours" value="{{ '%g'|format(l.ot_hours) if l.ot_hours else '' }}" inputmode="decimal" data-k="ot"></td>
+      <td class="n calc" data-o="ota">{{ l.ot_amount|money }}</td>
+      <td><input class="r" name="bonus" value="{{ l.bonus|plain if l.bonus else '' }}" inputmode="decimal" data-k="bo"></td>
+      <td class="n calc" data-o="gr">{{ l.gross|money }}</td>
+      <td><input class="r" name="loan_ded" value="{{ l.loan_ded|plain if l.loan_ded else '' }}" inputmode="decimal" data-k="ln" data-max="{{ [r.loan_bal, 0]|max }}"
+        {{ 'readonly tabindex=-1 placeholder=—' if r.loan_bal <= 0 }}>{% if r.loan_bal > 0 %}<span class="hint">loan left {{ r.loan_bal|money }}</span>{% endif %}</td>
+      <td><input class="r" name="advance_ded" value="{{ l.advance_ded|plain if l.advance_ded else '' }}" inputmode="decimal" data-k="ad" data-max="{{ [r.adv_bal, 0]|max }}"
+        {{ 'readonly tabindex=-1 placeholder=—' if r.adv_bal <= 0 }}>{% if r.adv_bal > 0 %}<span class="hint">owes {{ r.adv_bal|money }}</span>{% endif %}</td>
+      <td><input class="r" name="other_ded" value="{{ l.other_ded|plain if l.other_ded else '' }}" inputmode="decimal" data-k="od"></td>
+      <td class="n net" data-o="net">{{ l.net|money }}</td>
+      <td><input class="w-n" name="note" value="{{ l.note }}" maxlength="120"></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td>Total</td><td class="n">{{ t.basic|money }}</td><td class="n" id="fAl"></td><td></td><td class="n" id="fAbd"></td><td></td><td class="n" id="fOt"></td>
+      <td class="n" id="fBo"></td><td class="n" id="fGr"></td><td class="n" id="fLn"></td><td class="n" id="fAd"></td><td class="n" id="fOd"></td><td class="n" id="fNet"></td><td></td></tr></tfoot>
+  </table></div>
+  <label style="margin-top:12px">Notes for this month<input name="notes" value="{{ run.notes }}"></label>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;margin-top:10px">
+    <button form="del" class="btn light" type="submit">Delete draft</button>
+    <span><button class="btn grey" name="action" value="save">{{ icon('save', 16) }} Save draft</button>
+    <button class="btn" name="action" value="final" onclick="return confirm('Finalise {{ label }} salary? Advances will be recovered and the salary goes into Profit & loss.')">{{ icon('check', 16) }} Save &amp; finalise</button></span>
+  </div>
+</form>
+<form id="del" method="post" action="{{ url_for('hr.sheet_delete', month=run.month) }}" onsubmit="return confirm('Delete this draft sheet?')">{{ csrf_field() }}</form>
+<script>
+(function () {
+  const days = {{ run.days }}, hours = {{ hours }}, mult = {{ mult }}, alLimit = {{ (S.allowance_absent_limit or 0)|float }};
+  const money = p => (p / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const num = v => { const n = parseFloat(String(v || '').replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+  const rows = [...document.querySelectorAll('#sheet tbody tr')];
+  let dirty = false;
+  function calc() {
+    const T = {al: 0, abd: 0, ota: 0, bo: 0, gr: 0, ln: 0, ad: 0, od: 0, net: 0};
+    rows.forEach(tr => {
+      const g = k => tr.querySelector(`[data-k=${k}]`);
+      const al = Math.round(Math.max(num(g('al').value), 0) * 100), m = +tr.dataset.b + al, perDay = days ? m / days : 0;
+      const ab = Math.min(Math.max(num(g('ab').value), 0), days);
+      const bas = +tr.dataset.b, cutAl = !alLimit || ab > alLimit;  // allowance cut only above the limit
+      const abd = Math.min(m, Math.round(days ? (bas / days * ab + (cutAl ? al / days * ab : 0)) : 0));
+      const ota = Math.round(perDay / hours * mult * Math.max(num(g('ot').value), 0));
+      const bo = Math.round(num(g('bo').value) * 100), od = Math.round(num(g('od').value) * 100);
+      const capped = k => { const v = Math.round(num(g(k).value) * 100), mx = +g(k).dataset.max; g(k).classList.toggle('bad', v > mx); return Math.min(v, mx); };
+      const ln = capped('ln'), ad = capped('ad');
+      const gr = m - abd + ota + bo, net = gr - ln - ad - od;
+      tr.querySelector('[data-o=abd]').textContent = money(abd);
+      tr.querySelector('[data-o=ota]').textContent = money(ota);
+      tr.querySelector('[data-o=gr]').textContent = money(gr);
+      const n = tr.querySelector('[data-o=net]'); n.textContent = money(net); n.classList.toggle('neg', net < 0);
+      T.al += al; T.abd += abd; T.ota += ota; T.bo += bo; T.gr += gr; T.ln += ln; T.ad += ad; T.od += od; T.net += net;
+    });
+    const set = (id, v) => document.getElementById(id).textContent = money(v);
+    set('fAl', T.al); set('fAbd', T.abd); set('fOt', T.ota); set('fBo', T.bo); set('fGr', T.gr); set('fLn', T.ln); set('fAd', T.ad);
+    set('fOd', T.od); set('fNet', T.net);
+    set('tGross', T.gr); set('tDed', T.abd + T.ln + T.ad + T.od); set('tNet', T.net);
+  }
+  document.getElementById('sheet').addEventListener('input', () => { dirty = true; calc(); });
+  document.getElementById('sheet').addEventListener('submit', () => { dirty = false; });
+  document.getElementById('sheet').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+      e.preventDefault();
+      const ins = [...document.querySelectorAll('#sheet tbody input:not([type=hidden])')];
+      const cols = ins.length / Math.max(rows.length, 1), i = ins.indexOf(e.target);
+      (ins[i + cols] || ins[(i % cols) + 1] || ins[0]).focus();
+    }
+  });
+  window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  calc();
+})();
+</script>
+{% else %}
+<form method="post" action="{{ url_for('hr.sheet_pay', month=run.month) }}" class="card" id="pay">
+  {{ csrf_field() }}
+  <div class="filters" style="margin-bottom:10px">
+    <label>Paid on<input type="date" name="date" value="{{ today }}"></label>
+    <label>Paid by<select name="method"><option value="">Each employee's own method</option>{% for x in methods %}<option>{{ x }}</option>{% endfor %}</select></label>
+    <button class="btn">{{ icon('check', 16) }} Mark ticked as paid</button>
+    <a class="btn light" href="?export=xlsx&bank=1">{{ icon('excel', 16) }} Bank transfer list</a>
+    <button class="btn wa" form="sendall" type="submit">{{ icon('whatsapp', 16) }} Send all payslips</button>
+  </div>
+  <div class="grid-wrap"><table class="grid sal">
+    <thead><tr><th class="tick"><input type="checkbox" id="all" title="Tick all unpaid"></th><th>Employee</th><th class="n">Basic + allow.</th><th class="n">Absent</th>
+      <th class="n">Overtime</th><th class="n">Bonus</th><th class="n">Gross</th><th class="n">Loan inst.</th><th class="n">Advance</th><th class="n">Other ded.</th><th class="n">Net pay</th><th>Paid</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}{% set l = r.l %}
+    <tr>
+      <td class="tick">{% if l.paid < l.net %}<input type="checkbox" name="pay" value="{{ l.id }}" class="pk">{% endif %}</td>
+      <td class="nm"><a href="{{ url_for('hr.employee_view', eid=l.employee_id) }}"><b>{{ l.name }}</b></a><div class="muted" style="font-size:12px">{{ l.code }} · {{ l.designation }}{% if l.note %} · {{ l.note }}{% endif %}</div></td>
+      <td class="n calc">{{ (l.basic + l.allowance)|money }}</td>
+      <td class="n">{% if l.absent_days %}{{ '%g'|format(l.absent_days) }}d <span class="calc">−{{ l.absent_ded|money }}</span>{% endif %}</td>
+      <td class="n">{% if l.ot_amount %}<span class="calc">{{ '%g'|format(l.ot_hours) }}h</span> {{ l.ot_amount|money }}{% endif %}</td>
+      <td class="n">{{ l.bonus|money if l.bonus else '' }}</td>
+      <td class="n">{{ l.gross|money }}</td>
+      <td class="n">{{ l.loan_ded|money if l.loan_ded else '' }}</td>
+      <td class="n">{{ l.advance_ded|money if l.advance_ded else '' }}</td>
+      <td class="n">{{ l.other_ded|money if l.other_ded else '' }}</td>
+      <td class="n net">{{ l.net|money }}</td>
+      <td>{% if l.paid >= l.net and l.net > 0 %}<span class="tag paid" title="{{ l.paid_method }}">{{ l.paid_date|d }}</span>
+          <button class="link" name="undo" value="{{ l.id }}" style="font-size:12px" onclick="return confirm('Undo this payment?')">undo</button>
+        {% elif l.net > 0 %}<span class="tag over">unpaid</span> <span class="muted" style="font-size:12px">{{ l.pay_method }}</span>{% endif %}</td>
+      <td class="nowrap"><a class="btn light small" target="_blank" href="{{ url_for('hr.slip_pdf', month=run.month, lid=l.id) }}">{{ icon('pdf', 14) }}</a>
+        {% if l.whatsapp or l.phone %}<button class="btn wa small" form="send{{ l.id }}" type="submit" title="Send payslip on WhatsApp">{{ icon('whatsapp', 14) }}</button>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td></td><td>Total · {{ rows|length }} employees</td><td class="n">{{ (t.basic + t.allowance)|money }}</td><td class="n">{{ t.absent_ded|money }}</td>
+      <td class="n">{{ t.ot_amount|money }}</td><td class="n">{{ t.bonus|money }}</td><td class="n">{{ t.gross|money }}</td><td class="n">{{ t.loan_ded|money }}</td><td class="n">{{ t.advance_ded|money }}</td>
+      <td class="n">{{ t.other_ded|money }}</td><td class="n">{{ t.net|money }}</td><td class="n">{{ t.paid|money }}</td><td></td></tr></tfoot>
+  </table></div>
+  {% if run.notes %}<p class="muted">{{ run.notes }}</p>{% endif %}
+</form>
+{% for r in rows %}<form id="send{{ r.l.id }}" method="post" action="{{ url_for('hr.slips_send', month=run.month) }}">{{ csrf_field() }}<input type="hidden" name="line" value="{{ r.l.id }}"></form>{% endfor %}
+<form id="sendall" method="post" action="{{ url_for('hr.slips_send', month=run.month) }}" onsubmit="return confirm('Send payslips to all employees on WhatsApp?')">{{ csrf_field() }}</form>
+{% if can('admin.users') %}
+<form method="post" action="{{ url_for('hr.sheet_reopen', month=run.month) }}" style="text-align:right" onsubmit="return confirm('Reopen this sheet for changes?')">{{ csrf_field() }}
+  <button class="link muted">Reopen sheet for changes</button></form>{% endif %}
+<script>
+document.getElementById('all').addEventListener('change', e => document.querySelectorAll('.pk').forEach(c => c.checked = e.target.checked));
+</script>
+{% endif %}
+{% endblock %}

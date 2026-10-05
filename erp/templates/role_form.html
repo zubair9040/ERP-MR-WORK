@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit role' if r else 'New role' }}{% endblock %}
+{% block content %}
+<form method="post" class="card">
+  {{ csrf_field() }}
+  <div class="form2">
+    <label>Role name<input name="name" value="{{ f.name }}" required maxlength="60"></label>
+    <label>Description<input name="description" value="{{ f.description }}" maxlength="200" placeholder="What is this role for?"></label>
+  </div>
+  <div class="perm-tools"><h3 style="margin:0">Permissions</h3><span class="grow"></span>
+    <button type="button" class="btn light small" data-all="1">Tick all</button>
+    <button type="button" class="btn light small" data-all="0">Clear all</button>
+    <button type="button" class="btn light small" data-view="1">View only</button></div>
+  <div class="perm-grid edit">
+    {% for area, ps in areas %}
+    <fieldset class="perm-area"><legend><label class="check"><input type="checkbox" class="area-all"> {{ area }}</label></legend>
+      {% for k, label in ps %}<label class="check"><input type="checkbox" name="perm" value="{{ k }}" {{ 'checked' if k in perms }}> {{ label }}</label>{% endfor %}
+    </fieldset>{% endfor %}
+  </div>
+  <p class="muted" style="font-size:12.5px">Tip: "View" is needed for the other ticks in the same box to be useful. People with this role get the new permissions the next time they open a page.</p>
+  <button class="btn">Save role</button> <a href="{{ url_for('core.roles', id=r.id if r else None) }}">Cancel</a>
+</form>
+<script>
+(function () {
+  var boxes = [].slice.call(document.querySelectorAll('input[name=perm]'));
+  function sync() { document.querySelectorAll('.perm-area').forEach(function (a) {
+      var all = a.querySelector('.area-all'), cb = [].slice.call(a.querySelectorAll('input[name=perm]'));
+      var n = cb.filter(function (c) { return c.checked; }).length;
+      all.checked = n === cb.length; all.indeterminate = n > 0 && n < cb.length; }); }
+  document.querySelectorAll('.area-all').forEach(function (all) {
+    all.addEventListener('change', function () {
+      all.closest('.perm-area').querySelectorAll('input[name=perm]').forEach(function (c) {
+        if (c.value !== 'scope.own_customers' || !all.checked) c.checked = all.checked; });
+      sync(); }); });
+  boxes.forEach(function (c) { c.addEventListener('change', function () {
+    var v = c.value.split('.')[0];
+    if (c.checked && !/\.view$/.test(c.value)) {  // ticking create/edit also ticks view in the same area
+      var view = document.querySelector('input[name=perm][value="' + v + '.view"]'); if (view) view.checked = true; }
+    if (!c.checked && /\.view$/.test(c.value)) boxes.forEach(function (o) { if (o.value.indexOf(v + '.') === 0) o.checked = false; });
+    sync(); }); });
+  document.querySelectorAll('[data-all]').forEach(function (b) { b.onclick = function () {
+    boxes.forEach(function (c) { c.checked = b.dataset.all === '1' && c.value !== 'scope.own_customers'; }); sync(); }; });
+  document.querySelector('[data-view]').onclick = function () {
+    boxes.forEach(function (c) { c.checked = /\.view$/.test(c.value) || /^reports\.(sales|finance)$/.test(c.value); }); sync(); };
+  sync();
+})();
+</script>
+{% endblock %}

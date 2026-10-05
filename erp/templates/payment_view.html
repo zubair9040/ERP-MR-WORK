@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_voidreq.html" import void_banner with context %}
+{% block title %}Payment receipt {{ p.number }}{% endblock %}
+{% block actions %}
+  <a class="btn grey" href="{{ url_for('sales.payment_go', direction='prev', **{'from': p.id}) }}" style="{{ 'opacity:.4;pointer-events:none' if not prev_id }}">{{ icon('left', 16) }} Prev</a>
+  <a class="btn grey" href="{{ url_for('sales.payment_go', direction='next', **{'from': p.id}) }}" style="{{ 'opacity:.4;pointer-events:none' if not next_id }}">Next {{ icon('right', 16) }}</a>
+  <a class="btn grey" target="_blank" href="{{ url_for('sales.payment_pdf', pid=p.id) }}">PDF receipt</a>
+  {% if can('payments.edit') and not p.void %}<a class="btn grey" href="{{ url_for('sales.payment_edit', pid=p.id) }}">Edit</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <dl class="kv">
+      <dt>Customer</dt><dd><a href="{{ url_for('sales.customer_view', cid=p.customer_id) }}"><b>{{ p.customer }}</b></a></dd>
+      <dt>Amount</dt><dd><b style="font-size:18px">{{ cur }} {{ p.amount|money }}</b>{% if p.void %} <span class="tag void">VOID</span>{% endif %}</dd>
+      <dt>Date</dt><dd>{{ p.date|d }}</dd>
+      <dt>Method</dt><dd>{{ p.method }}{% if p.reference %} · {{ p.reference }}{% endif %}</dd>
+      <dt>Balance now</dt><dd>{{ cur }} {{ bal|money }}</dd>
+      {% if p.notes %}<dt>Notes</dt><dd style="white-space:pre-line">{{ p.notes }}</dd>{% endif %}
+    </dl>
+  </div>
+  <div class="card">
+    <h3>Send receipt</h3>
+    {% if p.void %}<p class="muted">Void payments can't be sent.</p>{% else %}
+    <form method="post" action="{{ url_for('sales.payment_send', pid=p.id) }}" class="sendbox">
+      {{ csrf_field() }}
+      <label>Number<input name="phone" value="{{ wa }}" placeholder="923001234567" required></label>
+      <button class="btn wa">Send receipt</button>
+    </form>
+    <form method="post" action="{{ url_for('sales.payment_email', pid=p.id) }}" class="sendbox" style="margin-top:8px">
+      {{ csrf_field() }}
+      <label>Email<input name="email" value="{{ c_email or '' }}" placeholder="accounts@client.com" required></label>
+      <button class="btn">Email receipt</button>
+    </form>{% endif %}
+    {% if msgs %}<table style="margin-top:12px">{% for m in msgs %}<tr><td>{{ m.created_at }}</td><td>+{{ m.phone }}</td>
+      <td><span class="tag {{ m.status }}">{{ m.status }}</span></td><td class="muted">{{ m.user }}</td></tr>{% endfor %}</table>{% endif %}
+  </div>
+</div>
+{% if not p.void %}
+<div class="card">
+  <h3>Where this payment went <span class="tag">{{ 'Bill-wise' if p.apply_mode == 'manual' else 'Auto (oldest bills first)' }}</span></h3>
+  <table><tr><th>Invoice</th><th>Date</th><th class="n">Invoice total</th><th class="n">Paid by this payment</th></tr>
+  {% for w in went %}<tr><td>{% if w.inv %}<a href="{{ url_for('sales.invoice_view', iid=w.inv.id) }}">#{{ w.inv.number }}</a>{% else %}Opening balance{% endif %}</td>
+    <td>{{ w.inv.date|d if w.inv else '' }}</td><td class="n">{{ w.inv.total|money if w.inv else '' }}</td><td class="n">{{ w.amount|money }}</td></tr>{% endfor %}
+  {% if unapplied %}<tr><td colspan="3">Not applied yet (advance / credit)</td><td class="n">{{ unapplied|money }}</td></tr>{% endif %}
+  </table>
+</div>
+{% endif %}
+{% if can('payments.void') and not p.void %}{% call(vp) void_banner('payment', p.id) %}{% if not vp %}
+<div class="card"><form method="post" action="{{ url_for('sales.payment_void', pid=p.id) }}" class="rowform"
+   onsubmit="return confirm('{{ 'Void this payment? The customer balance will go back up.' if can('approve.voids') else 'Send a void request to the admin?' }}')">
+  {{ csrf_field() }}<input name="reason" placeholder="Reason (e.g. cheque bounced, entered twice)" required style="width:280px">
+  <button class="btn bad small">{{ 'Void / delete payment' if can('approve.voids') else 'Request void (admin approves)' }}</button></form></div>
+{% endif %}{% endcall %}{% endif %}
+{% endblock %}

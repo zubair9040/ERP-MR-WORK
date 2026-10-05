@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}PO batch billing{% endblock %}
+{% block actions %}{% if can('invoices.create') %}<a class="btn grey" href="{{ url_for('po.new') }}">{{ icon('plus', 16) }} New PO</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted" style="margin-top:0">One customer PO delivered to many branches: an invoice and DC for each branch, courier tracking, then one combined invoice for head office.</p>
+  <div class="seg" style="margin-bottom:12px">
+    {% for k, lbl in [('', 'All'), ('open', 'In delivery'), ('billed', 'Billed, awaiting payment'), ('paid', 'Paid')] %}
+    <a href="?status={{ k }}" class="{{ 'on' if st == k }}">{{ lbl }}</a>{% endfor %}
+  </div>
+  <div class="tablewrap"><table>
+  <tr><th>PO no.</th><th>Date</th><th>Head office</th><th class="n">Branches</th><th>Delivered</th><th>Combined inv.</th><th class="n">Total</th><th class="n">Due</th><th>Status</th></tr>
+  {% for r in rows %}<tr>
+    <td><a href="{{ url_for('po.view', bid=r.b.id) }}"><b>{{ r.b.po_no }}</b></a></td><td>{{ r.b.date|d }}</td><td>{{ co_tag(r.b.company_id) }} {{ r.b.customer }}</td>
+    <td class="n">{{ r.t.count }}</td>
+    <td>{% if r.t.count %}<div style="display:flex;gap:8px;align-items:center"><span>{{ r.t.delivered }}/{{ r.t.count }}</span><div class="po-prog" style="width:70px;margin:0"><i style="width:{{ (100 * r.t.delivered / r.t.count)|round|int }}%"></i></div></div>{% endif %}</td>
+    <td>{{ r.b.combined_no or '' }}</td><td class="n">{{ r.t.total|money }}</td><td class="n">{{ r.t.open|money(true) }}</td>
+    <td><span class="tag {{ r.cls }}">{{ r.label }}</span></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">No POs yet. Click <b>New PO</b> to start. Add the customer's branches on the customer page first (tab "Branches").</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

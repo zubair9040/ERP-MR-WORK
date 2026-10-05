@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Import from QuickBooks{% endblock %}
+{% block content %}
+{% if preview is none %}
+<div class="grid2">
+  <div class="card">
+    <h3>Upload a QuickBooks export</h3>
+    <form method="post" enctype="multipart/form-data">
+      {{ csrf_field() }}
+      {% if all_companies()|length > 1 %}<p class="flash {{ 'ok' if cur_company() else 'err' }}" style="margin:0 0 12px">{{ icon('layers', 16) }}<span>New customers will be added to
+        <b>{{ cur_company().name if cur_company() else all_companies()[0].name }}</b>.{% if not cur_company() %} Pick the right company in the bar at the top first.{% endif %}</span></p>{% endif %}
+      <label>What are you importing?<select name="kind" id="kind">{% for k, t in kinds.items() %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select></label>
+      <label>File (Excel .xlsx or .csv)<input type="file" name="file" accept=".xlsx,.xlsm,.csv" required></label>
+      <label>Cut-over date (the day you stop entering in QuickBooks)<input type="date" name="cutover" value="{{ today }}"></label>
+      <label class="check"><input type="checkbox" name="update" value="1"> Update records that already exist (otherwise they're skipped)</label>
+      <label class="check" id="ubal"><input type="checkbox" name="use_balance" value="1"> Use the customer's total balance as a single opening balance
+        <span class="muted">(only if you are NOT importing Open Invoices; for bill-wise payments import Open Invoices instead)</span></label>
+      <button class="btn">Upload and preview</button>
+      <p class="muted">Nothing is saved until you check the preview and press Import.</p>
+    </form>
+  </div>
+  <div class="card">
+    <h3>Recommended order</h3>
+    <ol>
+      <li><b>Items</b>: QuickBooks → Reports → List → <i>Item Price List</i> → Excel → Create New Worksheet.</li>
+      <li><b>Customers</b>: Reports → List → <i>Customer Contact List</i>. Click <i>Customize Report</i> and tick Mobile, Rep and Terms if you use them, then export to Excel.</li>
+      <li><b>Open invoices</b>: Reports → Customers &amp; Receivables → <i>Open Invoices</i>, dated your cut-over day, exported to Excel. Every unpaid bill comes across separately, so bill-wise payments keep working from day one.</li>
+    </ol>
+    <p class="muted">Currently in the system: {{ counts.customers }} customers, {{ counts.items }} items, {{ counts.invoices }} invoices.</p>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <h3>Preview: {{ count }} rows found <span class="muted">({{ kinds[kind].split('(')[0] }})</span></h3>
+  <p class="muted">Check the columns came across correctly. Only the first 200 rows are shown.</p>
+  <div class="tablewrap" style="max-height:520px;overflow:auto"><table>
+  {% if kind == 'customers' %}
+    <tr><th>Customer</th><th>Contact</th><th>Mobile / WhatsApp</th><th>Phone</th><th>Address</th><th>Rep</th><th>Terms</th><th class="n">Balance</th></tr>
+    {% for r in preview %}<tr><td>{{ r.name }}</td><td>{{ r.contact }}</td><td>{{ r.whatsapp }}</td><td>{{ r.phone }}</td>
+      <td style="white-space:pre-line">{{ r.address }}</td><td>{{ r.rep }}</td><td>{{ r.terms or '' }}</td><td class="n">{{ r.balance|money }}</td></tr>{% endfor %}
+  {% elif kind == 'items' %}
+    <tr><th>Item code</th><th>Description</th><th>Type</th><th>U/M</th><th class="n">Price</th></tr>
+    {% for r in preview %}<tr><td><b>{{ r.code }}</b></td><td>{{ r.description }}</td><td>{{ r.kind }}</td><td>{{ r.unit }}</td>
+      <td class="n">{{ ('%g'|format(r.percent) ~ '%') if r.kind == 'discount' else r.price|money }}</td></tr>{% endfor %}
+  {% else %}
+    <tr><th>Customer</th><th>Type</th><th>Date</th><th>Num</th><th>Due</th><th class="n">Open balance</th></tr>
+    {% for r in preview %}<tr><td>{{ r.customer }}</td><td>{{ r.type }}</td><td>{{ r.date|d }}</td><td>{{ r.num }}</td><td>{{ r.due|d }}</td><td class="n">{{ r.open|money }}</td></tr>{% endfor %}
+    <tr class="total"><td colspan="5">Total</td><td class="n">{{ total|money }}</td></tr>
+  {% endif %}
+  </table></div>
+  <form method="post" style="margin-top:14px" onsubmit="return confirm('Import {{ count }} rows now?')">
+    {{ csrf_field() }}<input type="hidden" name="step" value="confirm"><input type="hidden" name="token" value="{{ token }}">
+    <button class="btn alt">Import {{ count }} rows</button> <a href="{{ url_for('importer.index') }}">Cancel</a>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

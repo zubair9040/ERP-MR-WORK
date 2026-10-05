@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ it.code }} · stock card{% endblock %}
+{% block actions %}{% set qs = request.query_string.decode() %}
+  <a class="btn grey" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn grey" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+  <span class="logo" style="width:48px;height:48px">{{ icon('box', 22) }}</span>
+  <div style="flex:1;min-width:220px"><h2 style="margin:0">{{ it.description or it.name }}</h2>
+    <div class="muted">{{ it.code }}{% if it.barcode %} · barcode {{ it.barcode }}{% endif %}{% if it.location %} · location {{ it.location }}{% endif %} · {{ it.unit or 'no unit' }}</div></div>
+  {% if not is_rep() %}
+  <a class="btn light small" href="{{ url_for('wh.doc_new', dtype='ADJ') }}">{{ icon('settings', 14) }} Adjust</a>
+  <a class="btn light small" href="{{ url_for('wh.doc_new', dtype='TRF') }}">{{ icon('layers', 14) }} Transfer</a>{% endif %}
+</div>
+<div class="stats" style="grid-template-columns:repeat({{ [whs|length + 1 + (1 if show_cost else 0), 5]|min }},1fr)">
+  <div class="stat"><div class="k"><span class="chip">{{ icon('box', 16) }}</span> Total on hand</div><div class="v">{{ qty_fmt(lv.on_hand) }} <small>pcs</small></div>{% if pk %}<div class="muted">{{ pk }}</div>{% endif %}
+    <div class="muted">{% if it.reorder_level %}Minimum {{ qty_fmt(it.reorder_level) }}{% if lv.on_hand <= it.reorder_level %} · <span class="red">reorder</span>{% endif %}{% else %}No minimum set{% endif %}</div></div>
+  {% for w in whs %}
+  <div class="stat"><div class="k"><span class="chip">{{ icon('home', 16) }}</span> {{ w.name }}</div><div class="v">{{ qty_fmt(lv.by_wh.get(w.id, 0)) }}</div>
+    <div class="muted"><a href="?w={{ w.id }}">Movements in {{ w.code }}</a></div></div>
+  {% endfor %}
+  {% if show_cost %}<div class="stat s-ok"><div class="k"><span class="chip">{{ icon('wallet', 16) }}</span> Avg cost / value</div><div class="v" style="font-size:19px"><small>{{ cur }}</small>{{ lv.avg_cost|money }}</div>
+    <div class="muted">Value {{ lv.value|money }}</div></div>{% endif %}
+</div>
+<div class="card">
+  <div class="chips">
+    <a href="?" class="chip-l {{ 'on' if not wid }}">All warehouses</a>
+    {% for w in whs %}<a href="?w={{ w.id }}" class="chip-l {{ 'on' if wid == w.id }}">{{ w.code }}</a>{% endfor %}
+  </div>
+  <div class="tablewrap"><table>
+  <tr><th>Date</th><th>Document</th><th>Type</th><th>Warehouse</th><th>Party / note</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th></tr>
+  {% for m in moves %}<tr>
+    <td>{{ m.date|d }}</td>
+    <td>{% if not is_rep() %}<a href="{{ url_for('wh.doc_view', did=m.doc_id) }}">{{ doc_no(m.type, m.number) }}</a>{% else %}{{ doc_no(m.type, m.number) }}{% endif %}</td>
+    <td><span class="dtag d-{{ m.type|lower }}">{{ types[m.type].short }}</span></td>
+    <td>{{ m.wh_code }}{% if m.moved %} → {{ m.other_code }} <span class="muted">({{ qty_fmt(m.moved) }} moved)</span>{% elif m.type == 'TRF' %} <span class="muted">{{ 'from' if m.qty > 0 else 'to' }} {{ m.other_code }}</span>{% endif %}</td>
+    <td>{{ m.party or '' }}{% if m.ref %} <span class="muted">{{ m.ref }}</span>{% endif %}{% if m.note %} <span class="muted">{{ m.note }}</span>{% endif %}</td>
+    <td class="n pos">{{ qty_fmt(m.qty) if m.qty > 0 else '' }}</td><td class="n neg">{{ qty_fmt(-m.qty) if m.qty < 0 else '' }}</td>
+    <td class="n"><b>{{ qty_fmt(m.balance) }}</b></td></tr>
+  {% else %}<tr><td colspan="8" class="muted">No movements yet.</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

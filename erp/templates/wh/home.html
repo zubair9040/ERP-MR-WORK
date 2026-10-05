@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Warehouse{% endblock %}
+{% block content %}
+{% if can('warehouse.work') %}
+<div class="wh-actions">
+  {% for t, label, sub, ic in [('GRN', 'Goods receipt', 'Stock in from supplier', 'download'), ('DC', 'Goods issue (GIN)', 'Stock out of warehouse', 'truck'),
+                               ('TRF', 'Transfer', 'Between warehouses', 'layers'), ('ADJ', 'Adjustment', 'Damaged, lost, found', 'settings'),
+                               ('CNT', 'Stock count', 'Physical stock-take', 'check'), ('OPN', 'Opening stock', 'Starting quantities', 'box')] %}
+  <a class="wh-tile t-{{ t|lower }}" href="{{ url_for('wh.doc_new', dtype=t, w=wid or '') }}"><span class="wt-ic">{{ icon(ic, 20) }}</span><b>{{ label }}</b><small>{{ sub }}</small></a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="stats s5">
+  <div class="stat"><div class="k"><span class="chip">{{ icon('box', 16) }}</span> Pieces in stock</div><div class="v">{{ '{:,.0f}'.format(total_pcs) }}</div>
+    <div class="muted">{{ rows|length }} items · see cartons per item below</div></div>
+  {% if show_cost %}
+  <div class="stat"><div class="k"><span class="chip">{{ icon('wallet', 16) }}</span> Total cost value</div><div class="v"><small>{{ cur }}</small>{{ total_value|money }}</div>
+    <div class="muted">what the stock cost us</div></div>
+  <div class="stat s-ok"><div class="k"><span class="chip">{{ icon('trend', 16) }}</span> Total sale value</div><div class="v"><small>{{ cur }}</small>{{ total_sale|money }}</div>
+    <div class="muted">at sale prices{% if total_sale > total_value %} · margin {{ cur }} {{ (total_sale - total_value)|money }}{% endif %}</div></div>
+  {% else %}
+  <div class="stat s-ok"><div class="k"><span class="chip">{{ icon('home', 16) }}</span> Warehouses</div><div class="v">{{ whs|length }}</div></div>
+  {% endif %}
+  <div class="stat s-warn"><div class="k"><span class="chip">{{ icon('alert', 16) }}</span> At or below minimum</div><div class="v">{{ low_count }}</div>
+    <div class="muted"><a href="?low=1{{ '&w=' ~ wid if wid }}">Show low stock</a></div></div>
+  <div class="stat s-bad"><div class="k"><span class="chip">{{ icon('x', 16) }}</span> Out of stock</div><div class="v">{{ out_count }}</div></div>
+</div>
+
+<div class="card">
+  <div class="chips">
+    <a href="?{{ 'q=' ~ request.args.q if request.args.q }}" class="chip-l {{ 'on' if not wid }}">All warehouses</a>
+    {% for w in whs %}<a href="?w={{ w.id }}{{ '&q=' ~ request.args.q if request.args.q }}" class="chip-l {{ 'on' if wid == w.id }}">{{ w.code }} · {{ w.name }}</a>{% endfor %}
+  </div>
+  <form class="filters">
+    {% if wid %}<input type="hidden" name="w" value="{{ wid }}">{% endif %}
+    <label>Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Code, barcode, name, location"></label>
+    <label class="check"><input type="checkbox" name="low" value="1" {{ 'checked' if request.args.low }}> Low stock only</label>
+    <label class="check"><input type="checkbox" name="instock" value="1" {{ 'checked' if request.args.instock }}> In stock only</label>
+    <button class="btn grey">Filter</button>
+    {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+    <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+  </form>
+  <div class="tablewrap"><table>
+    <tr><th>Item code</th><th>Description</th><th>U/M</th><th>Location</th>
+      {% if not wid %}{% for w in whs %}<th class="n">{{ w.code }}</th>{% endfor %}{% endif %}
+      <th>Cartons + loose</th><th class="n">{{ 'Pcs on hand' if wid else 'Total pcs' }}</th><th class="n">Min</th>
+      {% if show_cost %}<th class="n">Cost / pc</th><th class="n">Cost value</th><th class="n">Sale value</th>{% endif %}<th></th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><a href="{{ url_for('wh.card', item_id=r.i.id, w=wid or '') }}"><b>{{ r.i.code }}</b></a>{% if r.i.barcode %}<div class="muted">{{ r.i.barcode }}</div>{% endif %}</td>
+      <td>{{ r.i.description or r.i.name }}</td><td>{{ r.i.unit }}</td><td class="muted">{{ r.i.location }}</td>
+      {% if not wid %}{% for w in whs %}{% set qv = r.s.by_wh.get(w.id, 0) %}<td class="n {{ 'muted' if not qv }}" title="pieces">{{ '%g'|format(qv) }}</td>{% endfor %}{% endif %}
+      <td class="pk">{{ r.pk }}</td>
+      <td class="n"><b class="{{ 'red' if r.s.on_hand < 0 }}">{{ '%g'|format(r.s.on_hand) }}</b></td>
+      <td class="n muted">{{ '%g'|format(r.i.reorder_level) if r.i.reorder_level else '' }}</td>
+      {% if show_cost %}<td class="n">{{ r.s.avg_cost|money }}</td><td class="n">{{ r.s.value|money }}</td><td class="n">{{ r.s.sale_value|money }}</td>{% endif %}
+      <td>{% if r.s.on_hand <= 0 %}<span class="tag over">out</span>{% elif r.low %}<span class="tag open">low</span>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="14" class="muted">No stock items found. Items of type "Item / product" appear here.</td></tr>{% endfor %}
+    {% if show_cost %}<tr class="total"><td colspan="{{ 8 + (0 if wid else whs|length) }}">Total stock value</td><td class="n">{{ cur }} {{ total_value|money }}</td><td class="n">{{ cur }} {{ total_sale|money }}</td><td></td></tr>{% endif %}
+  </table></div>
+</div>
+
+{% if not is_rep() %}
+<div class="card">
+  <h3 style="justify-content:space-between">Recent stock documents <a class="btn light small" href="{{ url_for('wh.docs') }}">All documents</a></h3>
+  <table><tr><th>Doc no.</th><th>Date</th><th>Type</th><th>Warehouse</th><th>Party / reference</th><th class="n">Lines</th></tr>
+  {% for d in recent %}<tr class="{{ 'voided' if d.void }}"><td><a href="{{ url_for('wh.doc_view', did=d.id) }}"><b>{{ doc_no(d.type, d.number) }}</b></a></td>
+    <td>{{ d.date|d }}</td><td><span class="dtag d-{{ d.type|lower }}">{{ types[d.type].name }}</span></td>
+    <td>{{ d.wh_code }}{% if d.to_code %} → {{ d.to_code }}{% endif %}</td><td>{{ d.party }}{% if d.ref %} <span class="muted">{{ d.ref }}</span>{% endif %}</td><td class="n">{{ d.n }}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">No stock documents yet. Start with an Opening stock document.</td></tr>{% endfor %}</table>
+</div>
+{% endif %}
+{% endblock %}

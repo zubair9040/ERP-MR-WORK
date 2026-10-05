@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Month-end statements{% endblock %}
+{% block content %}
+<form method="post" id="meform">
+{{ csrf_field() }}
+<div class="card">
+  <div class="optrow">
+    <label>Month<input type="month" name="month" value="{{ month }}"></label>
+    <button type="submit" formmethod="get" class="btn grey small" name="action" value="">Show</button>
+    <span class="muted">Statement period: {{ start|d }} to {{ end|d }}</span>
+  </div>
+  <div class="optbox-label">Statement type</div>
+  <div class="optboxes" style="grid-template-columns:repeat(3,1fr)">
+    <label class="optbox"><input type="radio" name="type" value="customer" {{ 'checked' if type_choice not in ('period', 'open') }}>
+      <b>Each customer's own setting</b><span>Corporate customers get unpaid bills only</span></label>
+    <label class="optbox"><input type="radio" name="type" value="period" {{ 'checked' if type_choice == 'period' }}>
+      <b>All activity for everyone</b><span>Invoices + payments for the month</span></label>
+    <label class="optbox"><input type="radio" name="type" value="open" {{ 'checked' if type_choice == 'open' }}>
+      <b>Unpaid bills only for everyone</b><span>Only invoices not yet paid</span></label>
+  </div>
+  <div class="optrow">
+    <input type="hidden" name="aging" value="0"><label class="check"><input type="checkbox" name="aging" value="1" {{ 'checked' if opts.aging }}> Aging boxes</label>
+    <label class="check"><input type="checkbox" name="details" value="1" {{ 'checked' if opts.details }}> Item details of each invoice</label>
+  </div>
+  <div class="optrow">
+    <button class="btn wa" name="action" value="send" onclick="return confirm('Send statements on WhatsApp to all ticked customers now?')">{{ icon('whatsapp', 16) }} Send ticked on WhatsApp</button>
+    <button class="btn grey" name="action" value="all_pdf" formmethod="get" formtarget="_blank">{{ icon('pdf', 16) }} All ticked statements (one PDF to print)</button>
+    <button class="btn light" name="export" value="xlsx" formmethod="get">{{ icon('excel', 16) }} List to Excel</button>
+    <button class="btn light" name="export" value="pdf" formmethod="get" formtarget="_blank">{{ icon('pdf', 16) }} List to PDF</button>
+  </div>
+</div>
+<div class="card">
+  <div class="tablewrap"><table>
+    <tr><th><input type="checkbox" id="all" checked title="Select all"></th><th>Customer</th><th>Rep</th><th>WhatsApp</th>
+      <th>Statement type</th><th class="n">Balance at {{ end|d }}</th><th>This month</th><th></th></tr>
+    {% for r in rows %}<tr>
+      <td><input type="checkbox" name="cid" value="{{ r.c.id }}" class="pick" {{ 'checked' if not r.sent }}></td>
+      <td><a href="{{ url_for('sales.customer_view', cid=r.c.id, **{'from': start, 'to': end}) }}">{{ r.c.name }}</a></td>
+      <td>{{ r.c.rep_code or '' }}</td>
+      <td>{{ '+' ~ r.wa if r.wa else '' }}{% if not r.wa %}<span class="tag failed">no number</span>{% endif %}</td>
+      <td>{% if r.mode == 'open' %}<span class="tag">Unpaid bills only</span>{% else %}<span class="muted">All activity</span>{% endif %}</td>
+      <td class="n">{{ r.c.balance|money }}</td>
+      <td>{% if r.sent %}<span class="tag sent">sent {{ r.sent }}</span>{% endif %}</td>
+      <td class="nowrap"><a target="_blank" href="{{ url_for('sales.statement_pdf', cid=r.c.id, mode=r.mode, aging='1' if opts.aging else '0', details='1' if opts.details else '', **{'from': start, 'to': end}) }}">PDF</a> ·
+        <a href="{{ url_for('sales.statement_xlsx', cid=r.c.id, mode=r.mode, aging='1' if opts.aging else '0', details='1' if opts.details else '', **{'from': start, 'to': end}) }}">Excel</a></td></tr>
+    {% else %}<tr><td colspan="8" class="muted">No customers with a balance at the end of this month.</td></tr>{% endfor %}
+    <tr class="total"><td></td><td colspan="4">{{ rows|length }} customers with a balance</td><td class="n">{{ total|money }}</td><td colspan="2"></td></tr>
+  </table></div>
+  <p class="muted">Customers already sent this month are unticked. Customers without a WhatsApp number are skipped when sending, but are included in the PDF. Large batches can take a few minutes; keep the page open.</p>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('all').addEventListener('change', e => document.querySelectorAll('.pick').forEach(c => c.checked = e.target.checked));
+(function () {
+  const f = document.getElementById('meform');
+  const sync = () => f.querySelectorAll('.optbox').forEach(b => b.classList.toggle('on', b.querySelector('input').checked));
+  f.addEventListener('change', sync); sync();
+  // the type/option boxes change the table's statement type: reload to show it
+  f.querySelectorAll('[name=type]').forEach(r => r.addEventListener('change', () => {
+    const p = new URLSearchParams(new FormData(f)); p.delete('cid'); p.delete('_csrf'); p.delete('action');
+    location.search = p.toString();
+  }));
+})();
+</script>
+{% endblock %}

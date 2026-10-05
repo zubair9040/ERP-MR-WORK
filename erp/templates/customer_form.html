@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit ' ~ c.name if c else 'New customer' }}{% endblock %}
+{% macro v(key, default='') %}{{ f[key] if f and key in f else (c[key] if c else default) }}{% endmacro %}
+{% block content %}
+<form method="post" class="card">
+  {{ csrf_field() }}
+  <div class="form2">
+    {% if all_companies()|length > 1 %}{% set cur_co = (v('company_id') or (cur_company().id if cur_company() else all_companies()[0].id))|string %}
+    <label class="wide">Company (this customer buys from)<select name="company_id" required>{% for co in all_companies() %}
+      <option value="{{ co.id }}" {{ 'selected' if cur_co == co.id|string }}>{{ co.name }}{{ ' · GST' if co.gst_registered else ' · non-GST' }}</option>{% endfor %}</select></label>{% endif %}
+    <label class="wide">Customer / business name<input name="name" value="{{ v('name') }}" required></label>
+    <label>Customer code / ID<input name="code" value="{{ v('code') }}" placeholder="Leave blank for the next code (C-0001…)" style="text-transform:uppercase"></label>
+    <label>City<input name="city" value="{{ v('city') }}" list="citylist" placeholder="e.g. Lahore"></label>
+    <datalist id="citylist">{% for c_ in ['Lahore','Karachi','Islamabad','Rawalpindi','Faisalabad','Multan','Peshawar','Quetta','Sialkot','Gujranwala','Hyderabad','Bahawalpur'] %}<option value="{{ c_ }}">{% endfor %}</datalist>
+    <label>Contact person<input name="contact" value="{{ v('contact') }}"></label>
+    <label>WhatsApp number<input name="whatsapp" value="{{ v('whatsapp') }}" placeholder="0300-1234567"></label>
+    <label>Other phone<input name="phone" value="{{ v('phone') }}"></label>
+    <label>Email (for corporate clients; separate several with commas)<input name="email" value="{{ v('email') }}" placeholder="accounts@client.com"></label>
+    <label>Send documents by<select name="send_by">{% for k, t in [('whatsapp', 'WhatsApp'), ('email', 'Email'), ('both', 'WhatsApp and email')] %}
+      <option value="{{ k }}" {{ 'selected' if v('send_by', 'whatsapp') == k }}>{{ t }}</option>{% endfor %}</select></label>
+    <label class="wide">Address<textarea name="address" rows="2">{{ v('address') }}</textarea></label>
+    <label>Sales rep<select name="rep_id"><option value="">—</option>
+      {% for r in reps %}<option value="{{ r.id }}" {{ 'selected' if v('rep_id')|string == r.id|string }}>{{ r.code }} · {{ r.name }}</option>{% endfor %}</select></label>
+    <label>Payments are usually applied<select name="payment_mode">
+      <option value="fifo" {{ 'selected' if v('payment_mode', 'fifo') != 'billwise' }}>Oldest bills first (FIFO)</option>
+      <option value="billwise" {{ 'selected' if v('payment_mode') == 'billwise' }}>Bill-wise (choose bills)</option></select></label>
+    <label>Statements show<select name="statement_mode">
+      <option value="activity" {{ 'selected' if v('statement_mode', 'activity') != 'open' }}>All activity (invoices + payments)</option>
+      <option value="open" {{ 'selected' if v('statement_mode') == 'open' }}>Unpaid bills only (corporate)</option></select></label>
+    <label>Payment terms (days)<input name="terms_days" type="number" min="0" value="{{ v('terms_days', 30) }}"></label>
+    <label>Credit limit (0 = none)<input name="credit_limit" value="{{ f.credit_limit if f and 'credit_limit' in f else (c.credit_limit|plain if c else '0.00') }}"></label>
+    <label>Opening balance (from your old system)<input name="opening_balance" value="{{ f.opening_balance if f and 'opening_balance' in f else (c.opening_balance|plain if c else '0.00') }}"></label>
+    <label>Opening balance date<input type="date" name="opening_date" value="{{ v('opening_date') or '' }}"></label>
+    <label class="wide">Notes<textarea name="notes" rows="2">{{ v('notes') }}</textarea></label>
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if not c or c.active }}> Active</label>
+  </div>
+  <button class="btn">Save customer</button> <a href="{{ url_for('sales.customer_view', cid=c.id) if c else url_for('sales.customers') }}">Cancel</a>
+</form>
+{% endblock %}

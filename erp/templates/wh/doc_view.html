@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ doc_no }}{% endblock %}
+{% block actions %}
+  <a class="btn grey" target="_blank" href="{{ url_for('wh.doc_pdf', did=doc.id) }}">{{ icon('print', 16) }} Print</a>
+  {% if show_cost and doc.type != 'CNT' %}<a class="btn grey" target="_blank" href="{{ url_for('wh.doc_pdf', did=doc.id, cost=1) }}">{{ icon('pdf', 16) }} Print with values</a>{% endif %}
+  {% if not doc.void %}<a class="btn grey" href="{{ url_for('wh.doc_edit', did=doc.id) }}">Edit</a>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+      <span class="dtag d-{{ doc.type|lower }}">{{ T.name }}</span>{% if doc.void %}<span class="tag void">VOID</span>{% endif %}
+    </div>
+    <dl class="kv">
+      <dt>Date</dt><dd>{{ doc.date|d }}</dd>
+      {% if doc.type == 'TRF' %}<dt>From</dt><dd><b>{{ doc.wh_name }}</b></dd><dt>To</dt><dd><b>{{ doc.to_name }}</b></dd>
+      {% else %}<dt>Warehouse</dt><dd><b>{{ doc.wh_name }}</b></dd>{% endif %}
+      {% if doc.party %}<dt>{{ T.party or 'Party' }}</dt><dd>{{ doc.party }}</dd>{% endif %}
+      {% if doc.ref %}<dt>Reference</dt><dd>{{ doc.ref }}</dd>{% endif %}
+      {% if doc.vehicle %}<dt>Vehicle</dt><dd>{{ doc.vehicle }}</dd>{% endif %}
+      {% if inv %}<dt>Invoice</dt><dd><a href="{{ url_for('sales.invoice_view', iid=inv.id) }}">#{{ inv.number }}</a></dd>{% endif %}
+      {% if pur %}<dt>Purchase bill</dt><dd><a href="{{ url_for('ops.purchase_view', did=pur.id) }}">#{{ pur.number }}{{ ' (' ~ pur.bill_no ~ ')' if pur.bill_no }}</a></dd>{% endif %}
+      <dt>Entered by</dt><dd>{{ doc.by_name or '—' }} <span class="muted">{{ doc.created_at }}</span></dd>
+    </dl>
+  </div>
+  <div class="card">
+    {% if doc.notes %}<p style="white-space:pre-line">{{ doc.notes }}</p>{% endif %}
+    {% if not doc.void and can('warehouse.manage') %}
+    <form method="post" action="{{ url_for('wh.doc_void', did=doc.id) }}" class="rowform" onsubmit="return confirm('Void {{ doc_no }}? The stock movement will be reversed.')">
+      {{ csrf_field() }}<input name="reason" placeholder="Reason for voiding" required style="width:240px"><button class="btn bad small">Void</button></form>
+    {% endif %}
+    <p class="muted" style="margin-top:14px">
+      {% if doc.type == 'GRN' %}Stock went up in {{ doc.wh_name }}.{% elif doc.type == 'DC' %}Stock went down in {{ doc.wh_name }}.
+      {% elif doc.type == 'TRF' %}Stock moved from {{ doc.wh_name }} to {{ doc.to_name }}.{% elif doc.type == 'CNT' %}Differences were applied to {{ doc.wh_name }}.
+      {% else %}Stock was changed in {{ doc.wh_name }}.{% endif %}</p>
+  </div>
+</div>
+{% if doc.type != 'CNT' %}<div class="doc-sum" style="margin:0 0 14px">
+  <div><small>Total cartons</small><b>{{ qty_fmt(total_ctn) }}</b></div>
+  <div><small>Total pieces</small><b>{{ qty_fmt(total_pcs) }}</b></div>
+  {% if show_cost %}<div class="cost"><small>Total cost value</small><b>{{ cur }} {{ cost_value|money }}</b></div>
+  <div class="sale"><small>Total sale value</small><b>{{ cur }} {{ sale_value|money }}</b></div>{% endif %}
+</div>{% endif %}
+<div class="card">
+  <div class="tablewrap"><table>
+  {% if doc.type == 'CNT' %}
+    <tr><th>#</th><th>Item code</th><th>Description</th><th>Counted as</th><th class="n">System pcs</th><th class="n">Counted pcs</th><th class="n">Difference</th><th>Note</th></tr>
+    {% for l in lines %}<tr><td class="muted">{{ loop.index }}</td><td><a href="{{ url_for('wh.card', item_id=l.item_id) }}"><b>{{ l.code }}</b></a></td><td>{{ l.description or l.name }}</td>
+      <td>{{ pack(l) }}</td>
+      <td class="n">{{ qty_fmt(l.system_qty) }}</td><td class="n"><b>{{ qty_fmt(l.counted) }}</b></td>
+      <td class="n {{ 'pos' if l.qty > 0 else ('neg' if l.qty < 0) }}">{{ ('+' if l.qty > 0 else '') ~ qty_fmt(l.qty) }}</td><td class="muted">{{ l.note }}</td></tr>{% endfor %}
+  {% else %}
+    <tr><th>#</th><th>Item code</th><th>Description</th><th class="n">Cartons</th><th class="n">Pcs / ctn</th><th class="n">Loose</th><th class="n">Total pcs</th>
+      {% if show_cost and doc.type in ('GRN', 'OPN') %}<th class="n">Cost</th><th class="n">Value</th>{% endif %}<th>Note</th></tr>
+    {% for l in lines %}<tr><td class="muted">{{ loop.index }}</td><td><a href="{{ url_for('wh.card', item_id=l.item_id) }}"><b>{{ l.code }}</b></a></td><td>{{ l.description or l.name }}</td>
+      <td class="n">{{ qty_fmt(l.ctn) if l.ctn else '' }}</td><td class="n muted">{{ qty_fmt(l.ppc) if l.ctn else '' }}</td>
+      <td class="n">{{ qty_fmt(l.loose) if l.loose else ('' if l.ctn is not none else qty_fmt(l.qty)) }}</td>
+      <td class="n"><b>{{ ('+' if doc.type == 'ADJ' and l.qty > 0 else '') ~ qty_fmt(l.qty) }}</b></td>
+      {% if show_cost and doc.type in ('GRN', 'OPN') %}<td class="n">{{ l.unit_cost|money }}</td><td class="n">{{ (l.qty * l.unit_cost)|round|int|money }}</td>{% endif %}
+      <td class="muted">{{ l.note }}</td></tr>{% endfor %}
+    <tr class="total"><td colspan="3">{{ lines|length }} lines</td><td class="n">{{ qty_fmt(lines|selectattr('ctn')|map(attribute='ctn')|map('abs')|sum) }}</td><td></td><td></td>
+      <td class="n">{{ qty_fmt(lines|map(attribute='qty')|map('abs')|sum) }}</td>
+      {% if show_cost and doc.type in ('GRN', 'OPN') %}<td></td><td class="n">{{ total_value|money }}</td>{% endif %}<td></td></tr>
+  {% endif %}
+  </table></div>
+</div>
+{% endblock %}

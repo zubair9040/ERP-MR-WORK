@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block solo %}
+<form method="post" class="card narrow">
+  {{ csrf_field() }}
+  <h2>Welcome back</h2>
+  <p class="muted" style="margin:0 0 22px">Sign in to {{ S.company_name }}</p>
+  <label>Username<input name="username" required autofocus autocomplete="username"></label>
+  <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
+  <button class="btn wide">Sign in</button>
+</form>
+{% endblock %}

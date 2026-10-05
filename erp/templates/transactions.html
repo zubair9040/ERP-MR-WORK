@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}All transactions{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters">
+  <label class="grow-s">Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Customer, code, no., PO, cheque / reference"></label>
+  <details class="msel"><summary>Type{% if sel_types %} <b>({{ sel_types|length }})</b>{% endif %}</summary><div class="msel-box">
+    {% for k in allowed %}<label class="check"><input type="checkbox" name="type" value="{{ k }}" {{ 'checked' if k in sel_types }}> {{ types[k] }}s</label>{% endfor %}</div></details>
+  <label>From<input type="date" name="from" value="{{ request.args.get('from', '') }}"></label>
+  <label>To<input type="date" name="to" value="{{ request.args.to or '' }}"></label>
+  <label>Exact amount<input name="amount" value="{{ request.args.amount or '' }}" inputmode="decimal" style="width:110px"></label>
+  <label>Min<input name="min" value="{{ request.args.min or '' }}" inputmode="decimal" style="width:90px"></label>
+  <label>Max<input name="max" value="{{ request.args.max or '' }}" inputmode="decimal" style="width:90px"></label>
+  <label>Show<select name="status"><option value="">Active only</option><option value="void" {{ 'selected' if request.args.status == 'void' }}>Void only</option><option value="all" {{ 'selected' if request.args.status == 'all' }}>All, incl. void</option></select></label>
+  <label>Sort<select name="sort">{% for k, t in [('', 'Newest first'), ('date_asc', 'Oldest first'), ('amount_desc', 'Amount: high → low'), ('amount_asc', 'Amount: low → high'), ('customer', 'Customer A → Z')] %}<option value="{{ k }}" {{ 'selected' if (request.args.sort or '') == k }}>{{ t }}</option>{% endfor %}</select></label>
+  <button class="btn grey">Filter</button>
+  {% if filtered %}<a class="btn light clearf" href="{{ url_for('sales.transactions') }}">✕ Clear filter</a>{% endif %}
+  {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
+  <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
+</form>
+<div class="tx-sum">{% for k in allowed %}<span><small>{{ types[k] }}s</small><b>{{ tot[k]|money }}</b></span>{% endfor %}<span><small>Shown</small><b>{{ rows|length }}</b></span></div>
+<div class="tablewrap"><table>
+<tr><th>Date</th><th>Type</th><th>No.</th><th>Customer</th><th>Reference / PO / cheque</th><th class="n">Amount</th><th></th></tr>
+{% for r in rows %}{% set url = url_for('sales.invoice_view', iid=r.id) if r.t == 'invoice' else (url_for('sales.payment_view', pid=r.id) if r.t == 'payment' else url_for('ops.credit_view', did=r.id)) %}
+<tr class="{{ 'voided' if r.void }}"><td>{{ r.date|d }}</td><td><span class="tag {{ 'paid' if r.t == 'payment' else ('over' if r.t == 'credit' else 'open') }}">{{ types[r.t] }}</span></td>
+  <td><a href="{{ url }}"><b>{{ r.number }}</b></a></td><td><a href="{{ url_for('sales.customer_view', cid=r.cid) }}">{{ r.customer }}</a> <span class="muted">{{ r.ccode or '' }}</span></td>
+  <td>{{ r.method }} {{ r.ref }}</td><td class="n">{{ '-' if r.t != 'invoice' }}{{ r.amount|money }}</td>
+  <td>{% if r.void %}<span class="tag">void</span>{% elif void_pending(r.t, r.id) %}<span class="tag open">void requested</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">Nothing matches.</td></tr>{% endfor %}
+</table></div>
+{% if rows|length >= 1000 %}<p class="muted">Showing the first 1,000. Narrow the dates to see more.</p>{% endif %}
+</div>
+{% endblock %}

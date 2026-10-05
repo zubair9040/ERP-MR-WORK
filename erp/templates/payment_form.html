@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit payment ' ~ p.number if p else 'Collection (payment received)' }}{% endblock %}
+{% block content %}
+<div class="qb-toolbar">
+  <a class="tb" href="{{ url_for('sales.payment_go', direction='prev', **({'from': p.id} if p else {})) }}" {{ 'aria-disabled=true' if not last_id }}>{{ icon('left', 16) }} <span>Prev</span></a>
+  <a class="tb" href="{{ url_for('sales.payment_go', direction='next', **({'from': p.id} if p else {})) }}" {{ 'aria-disabled=true' if not next_id }}><span>Next</span> {{ icon('right', 16) }}</a>
+  <span class="sep"></span>
+  <a class="tb" href="{{ url_for('sales.payment_new') }}">{{ icon('plus', 16) }} <span>New</span></a>
+  <button class="tb" form="payform" name="action" value="save">{{ icon('save', 16) }} <span>Save</span></button>
+  {% if p %}<a class="tb" target="_blank" href="{{ url_for('sales.payment_pdf', pid=p.id) }}">{{ icon('print', 16) }} <span>Receipt</span></a>
+  <a class="tb" href="{{ url_for('sales.payment_view', pid=p.id) }}">{{ icon('more', 16) }} <span>Details / Void</span></a>{% endif %}
+  <a class="tb" href="{{ url_for('sales.payments') }}">{{ icon('list', 16) }} <span>All payments</span></a>
+</div>
+<form method="post" id="payform" autocomplete="off">
+{{ csrf_field() }}
+<input type="hidden" name="apply_mode" id="apply_mode" value="{{ f.apply_mode or '' }}">
+<div class="qb">
+  <div class="qb-main">
+    <div class="qb-bar">
+      <label>RECEIVED FROM
+        <select name="customer_id" id="customer" required>
+          <option value="">— choose customer —</option>
+          {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if f.customer_id|string == c.id|string }}>{{ c.name }}</option>{% endfor %}
+        </select></label>
+      <label>CUSTOMER BALANCE<div id="custbal" style="font-size:18px;font-weight:700;margin-top:4px">—</div></label>
+    </div>
+    <div class="qb-doc">
+      <div class="qb-top">
+        <div class="qb-title"><div class="big">Customer Payment</div>{% if p %}<div class="muted">Receipt #{{ p.number }}</div>{% endif %}</div>
+        <div class="modes" role="group" aria-label="How to apply">
+          <button type="button" data-mode="auto" class="mode">Auto apply<br><small>oldest bills first</small></button>
+          <button type="button" data-mode="manual" class="mode">Bill-wise<br><small>choose bills</small></button>
+        </div>
+      </div>
+      <div class="qb-row2" style="justify-content:start;grid-template-columns:repeat(4,minmax(130px,190px))">
+        <label>PAYMENT AMOUNT<input name="amount" id="amount" value="{{ f.amount or '' }}" inputmode="decimal" style="font-size:16px;font-weight:700"></label>
+        <label>DATE<input type="date" name="date" value="{{ f.date or today }}" required></label>
+        <label>PAYMENT METHOD<select name="method">{% for m in methods %}<option {{ 'selected' if f.method == m }}>{{ m }}</option>{% endfor %}</select></label>
+        <label>CHEQUE / REFERENCE #<input name="reference" value="{{ f.reference or '' }}"></label>
+      </div>
+      <div class="grid-wrap">
+        <table class="grid" id="openinv" style="min-width:680px">
+          <thead><tr><th style="width:34px">✓</th><th style="width:110px">DATE</th><th>NUMBER</th><th style="width:110px">DUE DATE</th><th class="c-amt">ORIG. AMT.</th><th class="c-amt">AMT. DUE</th><th style="width:130px">PAYMENT</th></tr></thead>
+          <tbody><tr><td colspan="7" class="amt" style="text-align:left">Choose a customer to see their open invoices.</td></tr></tbody>
+          <tfoot><tr><td></td><td colspan="3" class="amt" style="text-align:right;font-weight:700">Totals</td><td class="amt" id="f_orig"></td><td class="amt" id="f_due"></td><td class="amt" id="f_pay" style="font-weight:700"></td></tr></tfoot>
+        </table>
+      </div>
+      <p class="muted" id="modehelp" style="margin:6px 0 0"></p>
+      <div class="qb-bottom">
+        <div class="qb-notes"><label>MEMO<input name="notes" value="{{ f.notes or '' }}"></label></div>
+        <table class="qb-totals">
+          <tr><td>AMOUNT DUE</td><td>{{ cur }}</td><td class="n" id="t_due">0.00</td></tr>
+          <tr><td>APPLIED</td><td>{{ cur }}</td><td class="n" id="t_applied">0.00</td></tr>
+          <tr><td>UNAPPLIED (ADVANCE)</td><td>{{ cur }}</td><td class="n" id="t_unapplied">0.00</td></tr>
+          <tr class="bal"><td>NEW BALANCE</td><td>{{ cur }}</td><td class="n" id="t_newbal">0.00</td></tr>
+        </table>
+      </div>
+      <div class="qb-buttons">
+        <button class="btn grey" name="action" value="save_close">Save &amp; Close</button>
+        <button class="btn alt" name="action" value="save_new">Save &amp; New</button>
+        <a class="btn light" href="{{ url_for('sales.payment_edit', pid=p.id) if p else (url_for('sales.payment_new', customer_id=f.customer_id) if f.customer_id else url_for('sales.payment_new')) }}">Revert</a>
+      </div>
+      {% if S.auto_send_receipt == '1' and not p %}<p class="muted" style="text-align:right">A receipt will be sent on WhatsApp automatically.</p>{% endif %}
+    </div>
+  </div>
+  <aside class="qb-side">
+    <div class="side-name" id="s_name">No customer selected</div>
+    <div class="side-sec">RECENT TRANSACTIONS</div>
+    <table class="side-list" id="s_recent"></table>
+    <p id="s_links" style="margin-top:10px"></p>
+  </aside>
+</div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script id="allocdata" type="application/json">{{ posted_allocs|tojson }}</script>
+<script>
+(function () {
+  const PID = {{ (p.id if p else None)|tojson }};
+  const cust = document.getElementById('customer'), amount = document.getElementById('amount');
+  const modeInput = document.getElementById('apply_mode');
+  const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+  const fmt = n => n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const r2 = n => Math.round(n * 100) / 100;
+  let data = null, rows = [], amountTyped = !!amount.value;
+  const preset = {};
+  JSON.parse(document.getElementById('allocdata').textContent).forEach(a => { preset[String(a.invoice)] = num(a.amount); });
+
+  function setMode(m) {
+    modeInput.value = m;
+    document.querySelectorAll('.mode').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+    document.getElementById('modehelp').textContent = m === 'auto'
+      ? 'Auto apply: the payment pays the oldest bills first. Switch to Bill-wise to choose bills yourself.'
+      : 'Bill-wise: tick the bills this payment is for, or type the amount against each bill. Anything left over is kept as an advance.';
+    if (m === 'manual' && data) rows.forEach(r => { if (r.pay === undefined) r.pay = 0; });
+    render();
+  }
+
+  function build() {
+    rows = [];
+    if (num(data.opening_open) > 0) rows.push({key: 'opening', label: 'Opening balance', date: '', due: '', total: num(data.opening_open), open: num(data.opening_open)});
+    const groups = {};
+    data.open_invoices.forEach(i => {
+      if (i.po) {  // a PO billed to head office: its branch invoices show as one combined line
+        let g = groups[i.po.id];
+        if (!g) { g = groups[i.po.id] = {key: 'po' + i.po.id, po: i.po.id, label: 'Combined inv. ' + i.po.combined_no + ' · PO ' + i.po.po_no,
+          date: i.date, due: i.due, overdue: false, total: 0, open: 0, subs: []}; rows.push(g); }
+        g.subs.push({key: String(i.id), open: num(i.open)}); g.total = r2(g.total + num(i.total)); g.open = r2(g.open + num(i.open));
+        g.overdue = g.overdue || i.overdue;
+        return;
+      }
+      rows.push({key: String(i.id), id: i.id, label: 'Invoice #' + i.number, date: i.date, due: i.due,
+        overdue: i.overdue, total: num(i.total), open: num(i.open)});
+    });
+    rows.forEach(r => {
+      if (r.subs) { r.label += ' (' + r.subs.length + ' branch bills)'; r.pay = r2(r.subs.reduce((s, x) => s + (preset[x.key] || 0), 0)); }
+      else r.pay = preset[r.key] || 0;
+    });
+  }
+
+  function autoAlloc() {
+    let left = num(amount.value);
+    rows.forEach(r => { const a = Math.min(left, r.open); r.auto = r2(a); left = r2(left - a); });
+  }
+
+  function hidden(r, pay) {
+    if (!r.subs) return `<input type="hidden" name="alloc_invoice" value="${r.key}"><input type="hidden" name="alloc_amount" value="${pay || ''}">`;
+    let left = pay || 0;  // spread over the branch bills, oldest first
+    return r.subs.map(x => { const a = r2(Math.min(left, x.open)); left = r2(left - a);
+      return `<input type="hidden" name="alloc_invoice" value="${x.key}"><input type="hidden" name="alloc_amount" value="${a || ''}">`; }).join('');
+  }
+
+  function render() {
+    const tb = document.querySelector('#openinv tbody');
+    if (!data) return;
+    const manual = modeInput.value === 'manual';
+    if (!manual) autoAlloc();
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="7" class="amt" style="text-align:left">No open invoices for this customer.</td></tr>'; }
+    else tb.innerHTML = rows.map((r, k) => {
+      const pay = manual ? r.pay : r.auto;
+      const link = r.id ? `<a href="/invoices/${r.id}" target="_blank">${r.label}</a>` : (r.po ? `<a href="/po/${r.po}" target="_blank">${r.label}</a>` : r.label);
+      const cell = manual
+        ? `<input class="r payin" data-k="${k}" value="${pay ? pay.toFixed(2) : ''}" inputmode="decimal">
+           ${hidden(r, pay)}`
+        : `<span style="padding:0 8px;font-weight:600">${pay ? fmt(pay) : ''}</span>`;
+      return `<tr class="${pay ? 'picked' : ''}"><td style="text-align:center">${manual ? `<input type="checkbox" class="tick" data-k="${k}" ${pay ? 'checked' : ''}>` : (pay ? '✓' : '')}</td>
+        <td class="amt" style="text-align:left">${r.date}</td><td class="amt" style="text-align:left">${link}</td>
+        <td class="amt ${r.overdue ? 'red' : ''}" style="text-align:left">${r.due}</td><td class="amt">${fmt(r.total)}</td>
+        <td class="amt">${fmt(r.open)}</td><td class="${manual ? '' : 'amt'}">${cell}</td></tr>`;
+    }).join('');
+    tb.querySelectorAll('.tick').forEach(t => t.addEventListener('change', () => {
+      const r = rows[t.dataset.k];
+      if (t.checked) {
+        const used = rows.reduce((s, x) => s + (x === r ? 0 : x.pay), 0);
+        r.pay = amountTyped ? r2(Math.max(0, Math.min(r.open, num(amount.value) - used))) : r.open;
+        if (amountTyped && !r.pay) r.pay = r.open;
+      } else r.pay = 0;
+      syncAmount(); render();
+    }));
+    tb.querySelectorAll('.payin').forEach(i => {
+      i.addEventListener('change', () => { const r = rows[i.dataset.k]; r.pay = r2(Math.min(num(i.value), r.open)); syncAmount(); render(); });
+      i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); i.dispatchEvent(new Event('change')); } });
+    });
+    totals();
+  }
+
+  function syncAmount() {
+    if (!amountTyped) amount.value = rows.reduce((s, r) => s + r.pay, 0).toFixed(2);
+  }
+
+  function totals() {
+    const manual = modeInput.value === 'manual';
+    const due = rows.reduce((s, r) => s + r.open, 0);
+    const applied = rows.reduce((s, r) => s + (manual ? r.pay : r.auto), 0);
+    const amt = num(amount.value);
+    document.getElementById('f_orig').textContent = fmt(rows.reduce((s, r) => s + r.total, 0));
+    document.getElementById('f_due').textContent = fmt(due);
+    document.getElementById('f_pay').textContent = fmt(applied);
+    document.getElementById('t_due').textContent = fmt(due);
+    document.getElementById('t_applied').textContent = fmt(applied);
+    const un = amt - applied;
+    const u = document.getElementById('t_unapplied');
+    u.textContent = fmt(un); u.classList.toggle('red', un < -0.001);
+    const base = num(data.balance) + (PID ? num(data.this_payment || 0) : 0);
+    document.getElementById('t_newbal').textContent = fmt(base - amt);
+  }
+
+  function load() {
+    if (!cust.value) return;
+    fetch('/api/customer/' + cust.value + (PID ? '?exclude=' + PID : '')).then(r => r.json()).then(c => {
+      data = c;
+      if (PID) data.this_payment = {{ ((p.amount / 100) if p else 0)|tojson }};
+      document.getElementById('custbal').textContent = fmt(num(c.balance));
+      document.getElementById('s_name').textContent = c.name;
+      document.getElementById('s_recent').innerHTML = c.recent.map(r =>
+        `<tr><td>${r.date}</td><td><a href="${r.url}">${r.type}</a></td><td class="n ${r.type === 'Invoice' ? 'red' : ''}">${fmt(num(r.amount))}</td></tr>`).join('')
+        || '<tr><td class="muted">None</td></tr>';
+      document.getElementById('s_links').innerHTML = `<a href="/customers/${c.id}">Customer account &amp; statement →</a>`;
+      if (!amount.value && num(c.balance) > 0) amount.placeholder = fmt(num(c.balance));
+      build();
+      setMode(modeInput.value || (c.payment_mode === 'billwise' ? 'manual' : 'auto'));
+      if (!PID) amount.focus();
+    }).catch(() => {});
+  }
+
+  document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  cust.addEventListener('change', () => { Object.keys(preset).forEach(k => delete preset[k]); modeInput.value = ''; load(); });
+  amount.addEventListener('input', () => { amountTyped = !!amount.value.trim(); render(); });
+  document.querySelectorAll('#payform input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter' && !i.classList.contains('payin')) e.preventDefault(); }));
+  document.getElementById('payform').addEventListener('submit', e => {
+    if (modeInput.value === 'manual') {
+      const applied = rows.reduce((s, r) => s + r.pay, 0);
+      if (num(amount.value) && applied - num(amount.value) > 0.001) { e.preventDefault(); alert('The amounts against bills are more than the payment amount.'); }
+      if (!num(amount.value) && !applied) { e.preventDefault(); alert('Enter a payment amount or tick at least one bill.'); }
+    } else if (!num(amount.value)) { e.preventDefault(); alert('Enter the payment amount.'); }
+  });
+  if (!cust.value) { cust.focus(); setMode(modeInput.value || 'auto'); }
+  load();
+})();
+</script>
+{% endblock %}

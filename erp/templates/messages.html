@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Messages log{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters"><label>Status<select name="status">{% for v, t in [('', 'All'), ('sent', 'Sent'), ('failed', 'Failed'), ('test', 'Test mode')] %}
+  <option value="{{ v }}" {{ 'selected' if request.args.status == v }}>{{ t }}</option>{% endfor %}</select></label><button class="btn grey">Filter</button></form>
+<div class="tablewrap"><table>
+<tr><th>When</th><th>Sent by</th><th>What</th><th>Customer</th><th>To</th><th>Result</th><th>By</th></tr>
+{% for m in rows %}<tr><td>{{ m.created_at }}</td><td>{% if m.channel == 'email' %}<span class="tag">{{ icon('send', 12) }} Email</span>{% else %}<span class="tag sent" style="background:#dcfce7;color:#15803d">WhatsApp</span>{% endif %}</td>
+  <td>{% if m.kind == 'invoice' %}<a href="{{ url_for('sales.invoice_view', iid=m.ref_id) }}">Invoice</a>
+      {% elif m.kind == 'sup_statement' %}<a href="{{ url_for('ops.supplier_view', sid=m.supplier_id) }}">Supplier statement</a>
+      {% elif m.kind == 'sup_payment' %}Payment advice
+      {% elif m.kind == 'po' %}<a href="{{ url_for('po.view', bid=m.ref_id) }}">PO combined invoice</a>
+      {% elif m.kind == 'receipt' %}<a href="{{ url_for('sales.payment_view', pid=m.ref_id) }}">Receipt</a>
+      {% elif m.kind == 'balance' %}Balance message{% elif m.kind == 'payslip' %}Payslip
+      {% else %}Statement <span class="muted">{{ m.period.replace('..', ' to ') }}</span>{% endif %}</td>
+  <td>{{ m.customer or '' }}</td><td>{{ m.phone if m.channel == 'email' else ('+' ~ m.phone if m.phone) }}</td>
+  <td><span class="tag {{ m.status }}">{{ m.status }}</span>{% if m.status == 'failed' %}<div class="muted">{{ m.detail }}</div>{% endif %}</td>
+  <td>{{ m.user }}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">Nothing sent yet.</td></tr>{% endfor %}
+</table></div></div>
+{% endblock %}

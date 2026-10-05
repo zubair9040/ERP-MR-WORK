@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit user' if u else 'New user' }}{% endblock %}
+{% block content %}
+<form method="post" class="card">
+  {{ csrf_field() }}
+  <div class="form2">
+    <label>Full name<input name="name" value="{{ u.name if u else request.form.name or '' }}" required></label>
+    <label>Username<input name="username" value="{{ u.username if u else request.form.username or '' }}" required autocomplete="off"></label>
+    <label>Role<select name="role_id" id="roleSel" required><option value="">Choose a role…</option>
+      {% for r in roles %}<option value="{{ r.id }}" {{ 'selected' if cur_role == r.id }} data-rep="{{ 1 if 'scope.own_customers' in role_perms[r.id] else 0 }}">{{ r.name }}</option>{% endfor %}</select>
+      <small class="muted" id="roleDesc"></small></label>
+    <label id="repBox">Linked sales rep<select name="rep_id"><option value="">—</option>
+      {% for r in reps %}<option value="{{ r.id }}" {{ 'selected' if (u and u.rep_id == r.id) or request.form.rep_id == r.id|string }}>{{ r.code }} · {{ r.name }}</option>{% endfor %}</select>
+      <small class="muted">Needed when the role is limited to the rep's own customers.</small></label>
+    <label>{{ 'New password (leave blank to keep)' if u else 'Password (8+ characters)' }}<input type="password" name="password" autocomplete="new-password" {{ '' if u else 'required' }}></label>
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if not u or u.active }}> Active (can sign in)</label>
+  </div>
+  <p class="muted" style="margin:4px 0 14px">What each role can do is set under <a href="{{ url_for('core.roles') }}">Roles &amp; permissions</a>. You can make your own roles there.</p>
+  <button class="btn">Save</button> <a href="{{ url_for('core.users') }}">Cancel</a>
+</form>
+<script>
+(function () {
+  var desc = {{ roles|map(attribute='description')|list|tojson }}, ids = {{ roles|map(attribute='id')|list|tojson }};
+  var sel = document.getElementById('roleSel'), d = document.getElementById('roleDesc'), rep = document.getElementById('repBox');
+  function upd() { var i = ids.indexOf(+sel.value); d.textContent = i >= 0 ? desc[i] : '';
+    var o = sel.options[sel.selectedIndex]; rep.style.opacity = o && o.dataset.rep === '1' ? 1 : .55; }
+  sel.addEventListener('change', upd); upd();
+})();
+</script>
+{% endblock %}

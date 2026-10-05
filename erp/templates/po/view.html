@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}PO {{ b.po_no }}{% endblock %}
+{% block actions %}
+<a class="btn light" target="_blank" href="{{ url_for('po.pdf', bid=b.id) }}">{{ icon('pdf', 16) }} {{ 'Combined invoice' if b.combined_no else 'Preview combined' }}</a>
+{% if t.open > 0 and can('payments.create') %}<a class="btn alt" href="{{ url_for('po.pay', bid=b.id) }}">{{ icon('cash', 16) }} PO collection</a>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="po-head">
+    <div><h2>PO {{ b.po_no }} <span class="tag {{ cls }}">{{ label }}</span></h2>
+      <div class="muted">{{ co_tag(b.company_id) }} <a href="{{ url_for('sales.customer_view', cid=b.customer_id, tab='branches') }}"><b>{{ b.customer }}</b></a> · PO date {{ b.date|d }}{% if b.combined_no %} · Combined invoice <b>{{ b.combined_no }}</b> on {{ b.combined_date|d }}{% endif %}</div>
+      {% if b.notes %}<div class="muted" style="margin-top:4px">{{ b.notes }}</div>{% endif %}</div>
+    {% if can('invoices.edit') %}<details class="tb-menu"><summary class="btn light small">{{ icon('edit', 14) }} Edit PO</summary>
+      <form method="post" action="{{ url_for('po.edit', bid=b.id) }}" class="menu r" style="padding:12px;min-width:300px">{{ csrf_field() }}
+        <label>PO no.<input name="po_no" value="{{ b.po_no }}"></label><label>PO date<input type="date" name="date" value="{{ b.date }}"></label>
+        <label>Note<input name="notes" value="{{ b.notes }}"></label><button class="btn small">Save</button></form></details>{% endif %}
+  </div>
+</div>
+
+<div class="po-kpis">
+  <div class="card"><small>Branch invoices</small><b>{{ t.count }}</b>{% if t.branches %}<small>{{ t.billed_branches }} of {{ t.branches }} branches billed</small>{% endif %}</div>
+  <div class="card"><small>Delivered</small><b>{{ t.delivered }} / {{ t.count }}</b><div class="po-prog"><i style="width:{{ (100 * t.delivered / t.count)|round|int if t.count else 0 }}%"></i></div></div>
+  <div class="card"><small>PO total</small><b>{{ cur }} {{ t.total|money }}</b>{% if t.tax %}<small>incl. tax {{ t.tax|money }}</small>{% endif %}</div>
+  <div class="card"><small>Still due</small><b>{{ cur }} {{ t.open|money }}</b>{% if t.paid > 0 %}<small>paid {{ t.paid|money }}</small>{% endif %}</div>
+</div>
+
+<div class="card">
+  <h3>{{ icon('truck', 16) }} Branches</h3>
+  {% if not rows %}<p class="muted">This customer has no branches yet. <a href="{{ url_for('sales.customer_view', cid=b.customer_id, tab='branches') }}">Add branches</a>, or make an invoice without a branch.</p>{% endif %}
+  <div class="tablewrap"><table class="po-tbl">
+  <tr><th>Branch</th><th>Invoice</th><th class="n">Amount</th><th>Courier &amp; tracking</th><th>Delivered</th><th></th></tr>
+  {% for r in rows %}
+    {% if r.invoices %}{% for i in r.invoices %}
+    <tr id="inv{{ i.id }}">
+      {% if loop.first %}<td class="br" rowspan="{{ r.invoices|length }}"><b>{{ (r.branch.code ~ ' · ') if r.branch and r.branch.code }}{{ r.branch.name if r.branch else 'Head office / no branch' }}</b>{% if r.branch %}<small>{{ r.branch.address }}{{ ' · ' ~ r.branch.phone if r.branch.phone }}</small>{% endif %}</td>{% endif %}
+      <td><a href="{{ url_for('sales.invoice_view', iid=i.id) }}"><b>#{{ i.number }}</b></a> <span class="muted">{{ i.date|d }}</span><br>
+        <a class="muted" target="_blank" href="{{ url_for('sales.invoice_pdf', iid=i.id) }}">Invoice</a> · <a class="muted" target="_blank" href="{{ url_for('sales.invoice_dc_pdf', iid=i.id) }}">DC</a>
+        {% if i.open <= 0 %} · <span class="tag paid">Paid</span>{% endif %}</td>
+      <td class="n">{{ i.total|money }}</td>
+      <td>{% if can('invoices.edit') or can('warehouse.work') %}
+        <form method="post" action="{{ url_for('po.tracking', bid=b.id, iid=i.id) }}" class="trk">{{ csrf_field() }}
+          <input class="c" name="courier" value="{{ i.courier }}" list="couriers" placeholder="Courier">
+          <input class="t" name="tracking_no" value="{{ i.tracking_no }}" placeholder="Tracking no.">
+          <button class="btn light small">Save</button>
+          {% if i.link %}<a href="{{ i.link }}" target="_blank" rel="noopener" class="btn light small" title="Open the courier's tracking page">Track ↗</a>{% endif %}
+        </form>
+        {% else %}{{ i.courier }} {{ i.tracking_no }}{% if i.link %} <a href="{{ i.link }}" target="_blank" rel="noopener">Track ↗</a>{% endif %}{% endif %}</td>
+      <td>{% if can('invoices.edit') or can('warehouse.work') %}
+        <form method="post" action="{{ url_for('po.tracking', bid=b.id, iid=i.id) }}">{{ csrf_field() }}
+          <input type="hidden" name="courier" value="{{ i.courier }}"><input type="hidden" name="tracking_no" value="{{ i.tracking_no }}">
+          <input type="hidden" name="delivered" value="{{ '0' if i.delivered_on else '1' }}">
+          <button class="btn small {{ 'ok-b' if i.delivered_on else 'light' }}" {% if i.delivered_on %}title="Click to mark NOT delivered" onclick="return confirm('Mark as NOT delivered?')"{% endif %}>
+            {{ icon('check' if i.delivered_on else 'clock', 14) }} {{ (i.delivered_on|d) if i.delivered_on else 'Mark delivered' }}</button></form>
+        {% else %}{{ i.delivered_on|d if i.delivered_on else 'Not yet' }}{% endif %}</td>
+      <td class="n">{% if can('invoices.edit') and not b.combined_no %}<form method="post" action="{{ url_for('po.detach', bid=b.id, iid=i.id) }}" onsubmit="return confirm('Take invoice {{ i.number }} off this PO? The invoice is kept.')">{{ csrf_field() }}<button class="link muted" title="Take off this PO">✕</button></form>{% endif %}</td>
+    </tr>{% endfor %}
+    {% else %}
+    <tr><td class="br"><b>{{ (r.branch.code ~ ' · ') if r.branch.code }}{{ r.branch.name }}</b><small>{{ r.branch.address }}{{ ' · ' ~ r.branch.phone if r.branch.phone }}</small></td>
+      <td colspan="4" class="muted">No invoice yet</td>
+      <td class="n">{% if can('invoices.create') and not b.combined_no %}<a class="btn small" href="{{ url_for('sales.invoice_new', po=b.id, branch=r.branch.id) }}">{{ icon('plus', 14) }} Make invoice</a>{% endif %}</td></tr>
+    {% endif %}
+  {% endfor %}
+  <tr class="total"><td colspan="2">Total · {{ t.count }} invoice(s)</td><td class="n">{{ t.total|money }}</td><td colspan="3"></td></tr>
+  </table></div>
+  <datalist id="couriers">{% for c in couriers %}<option value="{{ c.name }}">{% endfor %}</datalist>
+  {% if can('invoices.create') and not b.combined_no %}<p style="margin-top:12px"><a class="btn light small" href="{{ url_for('sales.invoice_new', po=b.id) }}">{{ icon('plus', 14) }} Invoice without a branch</a>
+    {% if loose %}<details class="tb-menu" style="display:inline-block"><summary class="btn light small">Add existing invoices…</summary>
+      <form method="post" action="{{ url_for('po.attach', bid=b.id) }}" class="menu" style="padding:10px;max-height:320px;overflow:auto;min-width:300px">{{ csrf_field() }}
+        {% for i in loose %}<label class="check"><input type="checkbox" name="iid" value="{{ i.id }}"> #{{ i.number }} · {{ i.date|d }} · {{ i.total|money }}</label>{% endfor %}
+        <button class="btn small" style="margin-top:8px">Add to this PO</button></form></details>{% endif %}</p>{% endif %}
+</div>
+
+<div class="card">
+  <h3>{{ icon('invoice', 16) }} Combined invoice for head office</h3>
+  {% if not b.combined_no %}
+    {% if t.count and t.delivered < t.count %}<p class="muted">{{ t.count - t.delivered }} branch invoice(s) not delivered yet. You can still make the combined invoice now, or wait until all are delivered.</p>
+    {% elif t.count %}<p><span class="po-done">{{ icon('check', 16) }} All branches delivered.</span> Make the combined invoice and send it to head office.</p>{% endif %}
+    {% if can('invoices.create') and t.count %}
+    <form method="post" action="{{ url_for('po.combine', bid=b.id) }}" class="rowform">{{ csrf_field() }}
+      <label>Date <input type="date" name="date" value="{{ today }}"></label>
+      <button class="btn">{{ icon('invoice', 16) }} Make combined invoice</button></form>{% endif %}
+  {% else %}
+    <p>Combined invoice <b>{{ b.combined_no }}</b> · {{ b.combined_date|d }} · {{ cur }} {{ t.total|money }}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn light" target="_blank" href="{{ url_for('po.pdf', bid=b.id) }}">{{ icon('pdf', 16) }} Open PDF</a>
+      {% if can('invoices.send') %}
+      <form method="post" action="{{ url_for('po.send', bid=b.id) }}">{{ csrf_field() }}<input type="hidden" name="channel" value="whatsapp"><button class="btn wa">{{ icon('whatsapp', 16) }} WhatsApp</button></form>
+      <form method="post" action="{{ url_for('po.send', bid=b.id) }}" class="rowform">{{ csrf_field() }}<input type="hidden" name="channel" value="email">
+        <input name="email" value="{{ b.email or '' }}" placeholder="email address" style="width:220px"><button class="btn light">{{ icon('send', 16) }} Email</button></form>{% endif %}
+      {% if can('invoices.edit') and t.paid <= 0 %}<form method="post" action="{{ url_for('po.combine', bid=b.id) }}" onsubmit="return confirm('Cancel the combined invoice? You can make it again later with the same number.')">{{ csrf_field() }}<input type="hidden" name="undo" value="1"><button class="btn light">Cancel combined invoice</button></form>{% endif %}
+    </div>
+  {% endif %}
+  {% if msgs %}<table style="margin-top:12px"><tr><th>Sent</th><th>Channel</th><th>To</th><th>Status</th></tr>
+    {% for m in msgs %}<tr><td>{{ m.created_at[:16] if m.created_at else '' }}</td><td>{{ m.channel }}</td><td>{{ m.phone }}</td><td>{{ m.status }}</td></tr>{% endfor %}</table>{% endif %}
+</div>
+{% if can('invoices.void') and not t.paid %}
+<form method="post" action="{{ url_for('po.void', bid=b.id) }}" onsubmit="return confirm('Remove PO {{ b.po_no }}? Its branch invoices stay as normal invoices.')" style="margin-top:8px">{{ csrf_field() }}
+  <button class="link muted">Remove this PO</button></form>{% endif %}
+{% endblock %}

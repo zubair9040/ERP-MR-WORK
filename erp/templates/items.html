@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Items{% endblock %}
+{% block actions %}{% if can('items.edit') %}<a class="btn grey" href="{{ url_for('sales.item_form') }}">+ Add item</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters"><label class="grow-s">Search<input name="q" value="{{ request.args.q or '' }}" placeholder="Code, name, description or group"></label>
+  <details class="msel"><summary>Group{% if groups_sel %} <b>({{ groups_sel|length }})</b>{% endif %}</summary><div class="msel-box">
+    {% for g_ in groups %}<label class="check"><input type="checkbox" name="group" value="{{ g_ }}" {{ 'checked' if g_ in groups_sel }}> {{ g_ }}</label>{% endfor %}
+    <label class="check"><input type="checkbox" name="group" value="(none)" {{ 'checked' if '(none)' in groups_sel }}> <i>No group yet</i></label></div></details>
+  <label>Sort<select name="sort"><option value="">Item code</option><option value="group" {{ 'selected' if request.args.sort == 'group' }}>Group</option></select></label>
+  <label class="check"><input type="checkbox" name="inactive" value="1" {{ 'checked' if request.args.inactive }}> Include inactive</label>
+  <button class="btn grey">Filter</button>
+  {% if filtered %}<a class="btn light clearf" href="{{ url_for('sales.items') }}">✕ Clear filter</a>{% endif %}</form>
+<form method="post" action="{{ url_for('sales.items_set_group') }}" id="grpform">{{ csrf_field() }}<input type="hidden" name="back" value="{{ request.full_path }}">
+{% if can('items.edit') %}<div class="grp-bar" id="grpbar"><b id="grpn">0</b> ticked · put them in group
+  <input name="grp" list="grplist2" placeholder="e.g. Staplers" style="width:180px"><datalist id="grplist2">{% for g_ in groups %}<option value="{{ g_ }}">{% endfor %}</datalist>
+  <button class="btn small">Set group</button> <span class="muted" style="font-size:12px">(leave empty to remove the group)</span></div>{% endif %}
+<div class="tablewrap"><table><tr>{% if can('items.edit') %}<th style="width:30px"><input type="checkbox" id="tickall" title="Tick all"></th>{% endif %}<th>Item code</th><th>Name</th><th>Group</th><th>Description</th><th>Type</th><th>U/M</th><th class="n">Price</th><th></th></tr>
+{% for it in rows %}<tr>{% if can('items.edit') %}<td><input type="checkbox" name="iid" value="{{ it.id }}" class="tick"></td>{% endif %}<td><b>{{ it.code }}</b></td><td>{{ it.name }}{% if not it.active %} <span class="tag">inactive</span>{% endif %}</td>
+  <td>{% if it.grp %}<a class="role-pill" href="?group={{ it.grp|urlencode }}">{{ it.grp }}</a>{% endif %}</td>
+  <td>{{ it.description }}</td><td class="muted">{{ kinds.get(it.kind, it.kind) }}</td><td>{{ it.unit }}</td>
+  <td class="n">{% if it.kind == 'discount' %}{{ '%g'|format(it.percent) }}%{% elif it.kind == 'subtotal' %}{% else %}{{ it.price|money }}{% endif %}</td>
+  <td class="n">{% if can('items.edit') %}<a href="{{ url_for('sales.item_form', item_id=it.id) }}">Edit</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="9" class="muted">No items found.</td></tr>{% endfor %}</table></div></form>
+<p class="muted">Groups (Staplers, Glue sticks, Files…) let you see sales and purchases by group in Reports. Tick items and use "Set group" to group many at once.</p></div>
+<script>
+(function () {
+  const bar = document.getElementById('grpbar'); if (!bar) return;
+  const ticks = [...document.querySelectorAll('.tick')], n = document.getElementById('grpn');
+  const upd = () => { const c = ticks.filter(t => t.checked).length; n.textContent = c; bar.classList.toggle('on', c > 0); };
+  ticks.forEach(t => t.addEventListener('change', upd));
+  document.getElementById('tickall').addEventListener('change', e => { ticks.forEach(t => t.checked = e.target.checked); upd(); });
+  upd();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block actions %}<a class="btn light" href="{{ url_for('core.roles') }}">{{ icon('key', 16) }} Roles &amp; permissions</a><a class="btn grey" href="{{ url_for('core.user_form') }}">+ Add user</a>{% endblock %}
+{% block content %}
+<div class="card">
+<table><tr><th>Name</th><th>Username</th><th>Role</th><th>Linked rep</th><th>Status</th><th></th></tr>
+{% for u in users %}<tr class="{{ 'voided' if not u.active }}"><td><b>{{ u.name }}</b></td><td>{{ u.username }}</td>
+<td>{% if u.role_id %}<a href="{{ url_for('core.roles', id=u.role_id) }}" class="role-pill">{{ u.role_label }}</a>{% else %}{{ role_name(u) }}{% endif %}</td><td>{{ u.rep_name or '' }}</td>
+<td>{% if u.active %}<span class="tag paid">Active</span>{% else %}<span class="tag">Disabled</span>{% endif %}</td><td class="n"><a href="{{ url_for('core.user_form', uid=u.id) }}">Edit</a></td></tr>{% endfor %}
+</table></div>
+{% endblock %}

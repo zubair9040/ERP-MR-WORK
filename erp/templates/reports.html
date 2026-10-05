@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="grid2">
+  {% if can('reports.sales') %}
+  <div class="card"><h3>{{ icon('users', 16) }} Customers &amp; receivables</h3>
+    <p><a href="{{ url_for('reports.aging') }}">A/R aging summary</a> · <a href="{{ url_for('reports.aging_detail') }}">detail</a></p>
+    <p><a href="{{ url_for('reports.balances') }}">Customer balance summary</a></p>
+    <p><a href="{{ url_for('reports.open_invoices') }}">Unpaid bills – all customers</a></p>
+    <p><a href="{{ url_for('reports.collections') }}">Collections report (overdue bills with phone numbers)</a></p>
+    <p><a href="{{ url_for('reports.transactions') }}">Transaction list by customer</a></p>
+    <p><a href="{{ url_for('reports.phone_list') }}">Customer phone list</a> · <a href="{{ url_for('reports.contact_list') }}">Customer contact list</a></p>
+    <p><a href="{{ url_for('reports.item_prices') }}">Item price list</a></p>
+  </div>
+  <div class="card"><h3>{{ icon('trend', 16) }} Sales</h3>
+    <p><a href="{{ url_for('reports.sales', by='customer') }}">Sales by customer summary</a> · <a href="{{ url_for('reports.sales_detail', by='customer') }}">detail</a></p>
+    <p><a href="{{ url_for('reports.sales', by='item') }}">Sales by item summary</a> · <a href="{{ url_for('reports.sales_detail', by='item') }}">detail</a></p>
+    <p><a href="{{ url_for('reports.sales', by='rep') }}">Sales by rep summary</a> · <a href="{{ url_for('reports.sales_detail', by='rep') }}">detail</a></p>
+    <p><a href="{{ url_for('reports.sales', by='group') }}">Sales by item group summary</a> · <a href="{{ url_for('reports.sales_detail', by='group') }}">detail</a></p>
+    <p class="muted" style="font-size:12.5px">Every report has filter boxes: customer, item, item group, rep and city. Pick one customer to see only their lines.</p>
+    <h3 style="margin-top:18px">{{ icon('cash', 16) }} Money received</h3>
+    <p><a href="{{ url_for('reports.payments') }}">Payments received</a> (by method, day or customer)</p>
+  </div>
+  {% endif %}
+  {% if can('reports.finance') %}
+  <div class="card"><h3>{{ icon('chart', 16) }} Accounts</h3>
+    <p><a href="{{ url_for('reports.profit_loss') }}"><b>Profit &amp; loss</b></a></p>
+    <p><a href="{{ url_for('reports.expenses_report') }}">Expenses by category</a></p>
+  </div>
+  <div class="card"><h3>{{ icon('truck', 16) }} Purchasing &amp; stock</h3>
+    <p><a href="{{ url_for('reports.payables') }}">Payables (what we owe suppliers, by age)</a></p>
+    <p><a href="{{ url_for('reports.purchases_report') }}">Purchases by supplier</a> · <a href="{{ url_for('reports.purchases_report', by='item') }}">by item</a> · <a href="{{ url_for('reports.purchases_report', by='group') }}">by item group</a> · <a href="{{ url_for('reports.purchases_report', by='detail') }}">detail</a></p>
+    <p><a href="{{ url_for('wh.home') }}">Stock on hand &amp; inventory valuation</a> · <a href="{{ url_for('wh.home', low=1) }}">Low stock</a></p>
+    <p><a href="{{ url_for('wh.movements') }}">Stock movements (opening, in, out, closing)</a> · <a href="{{ url_for('wh.docs') }}">Warehouse documents</a></p>
+    {% if hr_allowed() %}<p><a href="{{ url_for('hr.report') }}">Salary register</a> · <a href="{{ url_for('hr.advances') }}">Advances &amp; loans outstanding</a> · <a href="{{ url_for('hr.employees') }}">Employee list</a></p>{% endif %}
+  </div>
+  {% endif %}
+</div>
+<p class="muted">Every report, list and statement can be downloaded as Excel or PDF.</p>
+{% endblock %}

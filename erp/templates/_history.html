@@ -1,0 +1,12 @@
+{% macro history_card(inv, hist) %}
+<div class="card" id="history"><h3>{{ icon('clock', 16) }} Transaction history · Invoice #{{ inv.number }}</h3>
+<div class="tablewrap"><table>
+<tr><th>Date</th><th>Transaction</th><th>Method / reference</th><th>Entered by</th><th class="n">Amount</th><th class="n">Balance due</th></tr>
+<tr><td>{{ inv.date|d }}</td><td><b>Invoice #{{ inv.number }}</b></td><td></td><td></td><td class="n">{{ inv.total|money }}</td><td class="n">{{ inv.total|money }}</td></tr>
+{% for r in hist.rows %}<tr><td>{{ r.p.date|d }}</td><td><a href="{{ url_for('sales.payment_view', pid=r.p.id) }}">Payment received #{{ r.p.number }}</a></td>
+  <td>{{ r.p.method }} {{ r.p.reference }}</td><td class="muted">{{ r.p.by_name or '' }}</td><td class="n" style="color:var(--ok-ink)">-{{ r.amount|money }}</td><td class="n">{{ r.left|money }}</td></tr>{% endfor %}
+{% if hist.credit %}<tr><td></td><td>Return / credit used</td><td></td><td></td><td class="n" style="color:var(--ok-ink)">-{{ hist.credit|money }}</td><td class="n">{{ hist.open|money }}</td></tr>{% endif %}
+<tr class="total"><td colspan="4">{% if inv.void %}Void{% elif hist.open <= 0 %}Fully paid{% elif hist.rows %}Part paid · {{ hist.rows|length }} payment(s){% else %}No payment yet{% endif %}</td>
+  <td class="n">{{ hist.paid|money }}</td><td class="n">{{ hist.open|money }}</td></tr>
+</table></div></div>
+{% endmacro %}

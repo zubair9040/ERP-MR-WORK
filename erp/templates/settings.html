@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div><h3 style="margin:0">{{ icon('layers', 16) }} Companies</h3><p class="muted" style="margin:4px 0 0">Each company's name, NTN / GST number, sales tax, address, phone, logo and invoice numbering.</p></div>
+  <a class="btn" href="{{ url_for('co.manage') }}">Open companies</a>
+</div>
+<form method="post" enctype="multipart/form-data">
+  {{ csrf_field() }}
+  {% for group, fields in groups %}
+  <div class="card">
+    <h3>{{ group }}</h3>
+    <div class="form2">
+    {% for key, label, kind in fields %}
+      {% if kind == 'check' %}
+        <label class="check wide"><input type="checkbox" name="{{ key }}" {{ 'checked' if s[key] == '1' }}> {{ label }}</label>
+      {% elif kind == 'image' %}
+        <div class="wide" style="margin-bottom:12px"><div style="font-size:13px;color:#34495e">{{ label }}</div>
+          {% if images[key] %}<img src="{{ url_for('core.settings_image', key=key) }}?t={{ range(1000)|random }}" style="max-height:90px;max-width:320px;border:1px solid var(--line);margin:6px 0;display:block">
+          <label class="check"><input type="checkbox" name="{{ key }}_remove" value="1"> Remove this picture</label>{% endif %}
+          <input type="file" name="{{ key }}" accept=".png,.jpg,.jpeg"></div>
+      {% elif kind == 'theme' %}
+        <div class="wide"><div class="optbox-label">{{ label }}</div><div class="optboxes" style="grid-template-columns:repeat(2,1fr)">
+          {% for v, name, desc in [('nova', 'Nova', 'Dark sidebar, indigo accent'), ('mint', 'Mint', 'Light and airy, teal accent')] %}
+          <label class="optbox {{ 'on' if (s[key] or 'nova') == v }}"><input type="radio" name="{{ key }}" value="{{ v }}" {{ 'checked' if (s[key] or 'nova') == v }}
+            onchange="document.querySelectorAll('[name={{ key }}]').forEach(r => r.closest('.optbox').classList.toggle('on', r.checked)); document.documentElement.dataset.theme = this.value">
+            <b>{{ name }}</b><span>{{ desc }}</span></label>{% endfor %}</div></div>
+      {% elif kind == 'textarea' %}
+        <label class="wide">{{ label }}<textarea name="{{ key }}" rows="3">{{ s[key] }}</textarea></label>
+      {% elif kind == 'secret' %}
+        <label class="wide">{{ label }}<input type="password" name="{{ key }}" placeholder="{{ '•••••••• saved — leave blank to keep' if s[key] else 'paste token' }}" autocomplete="off"></label>
+      {% else %}
+        <label>{{ label }}<input name="{{ key }}" value="{{ s[key] }}"></label>
+      {% endif %}
+    {% endfor %}
+    </div>
+    {% if group == 'WhatsApp' %}<p class="muted">Setup steps and the exact template wording are in the README.</p>{% endif %}
+  </div>
+  {% endfor %}
+  <button class="btn">Save settings</button>
+</form>
+{% endblock %}

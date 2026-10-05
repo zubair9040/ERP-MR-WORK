@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Void approvals' if approver else 'My void requests' }}{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted" style="margin-top:0">{% if approver %}Staff can't void or delete invoices, payments or returns on their own; their requests wait here. <b>Approve</b> voids the document (it leaves all balances but stays in the history). <b>Reject</b> changes nothing.
+  {% else %}Your requests to void or delete. The admin approves or rejects them.{% endif %}</p>
+  {% if approver %}<div class="seg" style="margin-bottom:12px">{% for k, t in [('pending', 'Waiting'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('all', 'All')] %}<a href="?status={{ k }}" class="{{ 'on' if status == k }}">{{ t }}</a>{% endfor %}</div>{% endif %}
+  <div class="tablewrap"><table>
+  <tr><th>Requested</th><th>Document</th><th>Customer / supplier</th><th class="n">Amount</th><th>Reason</th><th>Status</th><th></th></tr>
+  {% for x in rows %}<tr>
+    <td>{{ x.r.requested_at[:16] }}<div class="muted">{{ x.r.requested_name }}</div></td>
+    <td><a href="{{ x.url }}"><b>{{ x.label }} #{{ x.number }}</b></a><div class="muted">{{ x.date|d }}</div></td>
+    <td>{{ x.party }}</td><td class="n">{{ x.amount|money }}</td><td>{{ x.r.reason }}</td>
+    <td>{% if x.r.status == 'pending' %}<span class="tag open">Waiting</span>{% elif x.r.status == 'approved' %}<span class="tag paid">Approved</span>{% elif x.r.status == 'rejected' %}<span class="tag over">Rejected</span>{% else %}<span class="tag">{{ x.r.status|capitalize }}</span>{% endif %}
+      {% if x.r.decided_by %}<div class="muted" style="font-size:12px">{{ x.r.decided_by }} · {{ (x.r.decided_at or '')[:16] }}{{ ' · ' ~ x.r.decision_note if x.r.decision_note }}</div>{% endif %}</td>
+    <td class="n nowrap">{% if x.r.status == 'pending' %}
+      {% if approver %}
+      <form method="post" action="{{ url_for('ap.decide', rid=x.r.id, decision='approve') }}" class="inl" onsubmit="return confirm('Approve and void {{ x.label }} #{{ x.number }}?')">{{ csrf_field() }}<button class="btn bad small">Approve void</button></form>
+      <form method="post" action="{{ url_for('ap.decide', rid=x.r.id, decision='reject') }}" class="inl">{{ csrf_field() }}<input name="note" placeholder="Note (optional)" style="width:130px"><button class="btn light small">Reject</button></form>
+      {% else %}<form method="post" action="{{ url_for('ap.cancel', rid=x.r.id) }}" class="inl">{{ csrf_field() }}<button class="btn light small">Cancel request</button></form>{% endif %}
+    {% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="muted">{{ 'No requests waiting. ' if status == 'pending' else 'Nothing here.' }}</td></tr>{% endfor %}
+  </table></div>
+</div>
+{% endblock %}

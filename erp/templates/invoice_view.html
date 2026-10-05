@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_voidreq.html" import void_banner with context %}
+{% from "_history.html" import history_card %}
+{% block title %}Invoice {{ inv.number }}{% endblock %}
+{% block actions %}
+  <a class="btn grey" href="{{ url_for('sales.invoice_go', direction='prev', **{'from': inv.id}) }}" {{ 'aria-disabled=true style=opacity:.4' if not prev_id }}>{{ icon('left', 16) }} Prev</a>
+  <a class="btn grey" href="{{ url_for('sales.invoice_go', direction='next', **{'from': inv.id}) }}" {{ 'aria-disabled=true style=opacity:.4' if not next_id }}>Next {{ icon('right', 16) }}</a>
+  <a class="btn grey" target="_blank" href="{{ url_for('sales.invoice_pdf', iid=inv.id) }}">Print / PDF</a>
+  {% if can('invoices.edit') and not inv.void %}<a class="btn grey" href="{{ url_for('sales.invoice_form', iid=inv.id) }}">Edit</a>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card">
+    <dl class="kv">
+      <dt>Customer</dt><dd><a href="{{ url_for('sales.customer_view', cid=inv.customer_id) }}"><b>{{ inv.customer }}</b></a></dd>
+      <dt>Status</dt><dd><span class="tag {{ cls }}">{{ label }}</span>{% if not inv.void and open and open < inv.total %} <span class="muted">{{ open|money }} still open</span>{% endif %}</dd>
+      <dt>Date / Due</dt><dd>{{ inv.date|d }} · due {{ inv.due_date|d }}</dd>
+      <dt>Rep</dt><dd>{{ inv.rep_code ~ ' · ' ~ inv.rep_name if inv.rep_code else '—' }}</dd>
+      {% if inv.bilti_no %}<dt>Bilti no.</dt><dd>{{ inv.bilti_no }}</dd>{% endif %}
+      {% if inv.via %}<dt>Via</dt><dd>{{ inv.via }}</dd>{% endif %}
+      {% if inv.ref_no or inv.ctn_count %}<dt>Ref no. / CTN</dt><dd>{{ inv.ref_no }} {{ inv.ctn_count }}</dd>{% endif %}
+      <dt>Total</dt><dd><b>{{ cur }} {{ inv.total|money }}</b></dd>
+    </dl>
+    {% if not inv.void %}<p style="margin-top:12px"><a class="btn alt" href="{{ url_for('sales.payment_new', customer_id=inv.customer_id) }}">Collection</a></p>{% endif %}
+  </div>
+  <div class="card">
+    <h3>Send on WhatsApp</h3>
+    {% if inv.void %}<p class="muted">Void invoices can't be sent.</p>{% else %}
+    <form method="post" action="{{ url_for('sales.invoice_send', iid=inv.id) }}" class="sendbox"
+      {% if msgs and msgs[0].status in ('sent', 'test') %}onsubmit="return confirm('This invoice was already sent. Send again?')"{% endif %}>
+      {{ csrf_field() }}
+      <label>Number<input name="phone" value="{{ wa }}" placeholder="923001234567" required></label>
+      <button class="btn wa">Send invoice</button>
+    </form>
+    <form method="post" action="{{ url_for('sales.invoice_email', iid=inv.id) }}" class="sendbox" style="margin-top:8px">
+      {{ csrf_field() }}
+      <label>Email<input name="email" value="{{ inv_email or '' }}" placeholder="accounts@client.com" required></label>
+      <button class="btn">Email invoice</button>
+    </form>{% endif %}
+    {% if msgs %}<table style="margin-top:12px">{% for m in msgs %}<tr><td>{{ m.created_at }}</td><td>+{{ m.phone }}</td>
+      <td><span class="tag {{ m.status }}">{{ m.status }}</span></td><td class="muted">{{ m.user }}</td></tr>{% endfor %}</table>{% endif %}
+  </div>
+</div>
+<div class="card">
+  <div class="tablewrap"><table>
+  <tr><th class="n">Qty</th><th>U/M</th><th>CTN qty</th><th>Item code</th><th>Description</th><th class="n">Price each</th><th class="n">Amount</th></tr>
+  {% for l in lines %}<tr style="{{ 'font-weight:700' if l.kind == 'subtotal' }}"><td class="n">{{ qty_text(l) }}</td><td>{{ l.unit or '' }}</td><td>{{ l.ctn_qty or '' }}</td>
+    <td>{{ l.code or '' }}</td><td>{{ l.description }}</td><td class="n">{{ price_text(l) }}</td><td class="n">{{ l.amount|money }}</td></tr>{% endfor %}
+  </table></div>
+  <table class="totals">
+    {% if inv.tax %}<tr><td>Sales tax {{ '%g'|format(inv.tax_rate) }}%</td><td class="n">{{ inv.tax|money }}</td></tr>{% endif %}
+    <tr class="total"><td>Total {{ cur }}</td><td class="n">{{ inv.total|money }}</td></tr>
+    {% if not inv.void %}<tr><td>Payments applied</td><td class="n">{{ (inv.total - open)|money }}</td></tr>
+    <tr><td><b>Balance due</b></td><td class="n"><b>{{ open|money }}</b></td></tr>{% endif %}
+  </table>
+  {% if inv.customer_message %}<p><b>Message:</b> {{ inv.customer_message }}</p>{% endif %}
+  {% if inv.notes %}<p style="white-space:pre-line" class="muted"><b>Memo:</b> {{ inv.notes }}</p>{% endif %}
+</div>
+
+{{ history_card(inv, hist) }}
+{% if can('invoices.void') and not inv.void %}{% call(vp) void_banner('invoice', inv.id) %}{% if not vp %}
+<div class="card"><form method="post" action="{{ url_for('sales.invoice_void', iid=inv.id) }}" class="rowform"
+   onsubmit="return confirm('{{ 'Void' if can('approve.voids') else 'Ask the admin to void' }} invoice {{ inv.number }}?')">
+  {{ csrf_field() }}<input name="reason" placeholder="Reason for voiding / deleting" required style="width:280px">
+  <button class="btn bad small">{{ 'Void / delete invoice' if can('approve.voids') else 'Request void (admin approves)' }}</button></form></div>
+{% endif %}{% endcall %}{% endif %}
+{% endblock %}
