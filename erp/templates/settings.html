@@ -20,8 +20,8 @@
           <label class="check"><input type="checkbox" name="{{ key }}_remove" value="1"> Remove this picture</label>{% endif %}
           <input type="file" name="{{ key }}" accept=".png,.jpg,.jpeg"></div>
       {% elif kind == 'theme' %}
-        <div class="wide"><div class="optbox-label">{{ label }}</div><div class="optboxes" style="grid-template-columns:repeat(2,1fr)">
-          {% for v, name, desc in [('nova', 'Nova', 'Dark sidebar, indigo accent'), ('mint', 'Mint', 'Light and airy, teal accent')] %}
+        <div class="wide"><div class="optbox-label">{{ label }}</div><div class="optboxes" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">
+          {% for v, name, desc in [('nova', 'Nova', 'Dark sidebar, indigo accent'), ('mint', 'Mint', 'Light and airy, teal accent'), ('ocean', 'Ocean', 'Dark sidebar, blue accent'), ('forest', 'Forest', 'Dark sidebar, green accent'), ('sunset', 'Sunset', 'Dark sidebar, orange accent'), ('rose', 'Rose', 'Dark sidebar, pink accent'), ('graphite', 'Graphite', 'Dark grey sidebar, slate accent'), ('royal', 'Royal', 'Dark sidebar, purple accent'), ('sky', 'Sky', 'Light and airy, blue accent'), ('lavender', 'Lavender', 'Light and airy, purple accent'), ('sand', 'Sand', 'Light and warm, amber accent'), ('blush', 'Blush', 'Light and soft, pink accent'), ('slate', 'Slate', 'Light and neutral, grey accent')] %}
           <label class="optbox {{ 'on' if (s[key] or 'nova') == v }}"><input type="radio" name="{{ key }}" value="{{ v }}" {{ 'checked' if (s[key] or 'nova') == v }}
             onchange="document.querySelectorAll('[name={{ key }}]').forEach(r => r.closest('.optbox').classList.toggle('on', r.checked)); document.documentElement.dataset.theme = this.value">
             <b>{{ name }}</b><span>{{ desc }}</span></label>{% endfor %}</div></div>
