@@ -6,4 +6,4 @@ COPY . .
 ENV ERP_DATA_DIR=/data ERP_HTTPS=1 PYTHONUNBUFFERED=1
 VOLUME /data
 EXPOSE 8000
-CMD ["sh", "-c", "gunicorn -w 2 --threads 4 --timeout 600 -b 0.0.0.0:${PORT:-8000} wsgi:app"]
+CMD ["sh", "/app/docker-entrypoint.sh"]

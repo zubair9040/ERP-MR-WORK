@@ -1,19 +1,20 @@
-# FREE test deploy on Render (https://render.com): New > Blueprint > pick this repo.
-# Free plan has no disk: data resets whenever the site restarts, so demo data is reloaded each time.
+# One-click test deploy on Render (https://render.com): New > Blueprint > pick this repo.
 # Every push to the branch below redeploys automatically.
 services:
   - type: web
     name: erp-test
     runtime: docker
     branch: claude/trusting-tesla-0uke9w
-    plan: free
+    plan: starter          # persistent disk needs a paid plan (~US$7/mo)
     autoDeploy: true
     envVars:
       - key: ERP_DATA_DIR
-        value: /tmp/erpdata
+        value: /data
       - key: ERP_HTTPS
-        value: "1"
-      - key: ERP_DEMO
         value: "1"
       - key: ERP_SECRET_KEY
         generateValue: true
+    disk:
+      name: erp-data
+      mountPath: /data
+      sizeGB: 1
