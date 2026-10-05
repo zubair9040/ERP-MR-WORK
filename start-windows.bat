@@ -49,7 +49,9 @@ echo    Keep THIS window open. Close it to stop the ERP.
 echo  ============================================================
 echo.
 start "" cmd /c "timeout /t 4 >nul & start http://localhost:8000"
-%PY% -c "from waitress import serve; from wsgi import app; print('Running on http://localhost:8000'); serve(app, host='0.0.0.0', port=8000)"
+set ERP_DEBUG=1
+set ERP_HOST=127.0.0.1
+%PY% wsgi.py
 echo.
 echo  The ERP stopped. If you see an error above, send a screenshot of this window.
 pause
