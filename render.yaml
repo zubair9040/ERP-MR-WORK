@@ -1,0 +1,20 @@
+# One-click test deploy on Render (https://render.com): New > Blueprint > pick this repo.
+# Every push to the branch below redeploys automatically.
+services:
+  - type: web
+    name: erp-test
+    runtime: docker
+    branch: claude/trusting-tesla-0uke9w
+    plan: starter          # persistent disk needs a paid plan (~US$7/mo)
+    autoDeploy: true
+    envVars:
+      - key: ERP_DATA_DIR
+        value: /data
+      - key: ERP_HTTPS
+        value: "1"
+      - key: ERP_SECRET_KEY
+        generateValue: true
+    disk:
+      name: erp-data
+      mountPath: /data
+      sizeGB: 1
