@@ -485,3 +485,15 @@ def reps():
     rows = q("""SELECT r.*, (SELECT COUNT(*) FROM customers c WHERE c.rep_id = r.id) AS customers
                 FROM reps r ORDER BY r.active DESC, r.name""")
     return render_template("reps.html", reps=rows, edit=request.args.get("edit", type=int))
+
+
+@bp.route("/audit")
+def audit_log():
+    """Admin-only: who changed what, newest first."""
+    who = request.args.get("user", "").strip()
+    where, args = " WHERE 1 = 1", []
+    if who:
+        where += " AND user_name LIKE ?"
+        args.append(f"%{who}%")
+    rows = q(f"SELECT * FROM audit_log {where} ORDER BY id DESC LIMIT 500", args)
+    return render_template("audit.html", rows=rows, who=who)

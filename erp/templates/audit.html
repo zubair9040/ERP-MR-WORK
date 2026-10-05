@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="card">
+  <h2>Audit log</h2>
+  <p class="muted">Every save, edit, void and delete, with who did it and when. Newest first (last 500).</p>
+  <form method="get" style="margin-bottom:12px"><input name="user" value="{{ who }}" placeholder="Filter by user name"> <button class="btn">Filter</button></form>
+  <table>
+    <tr><th>When</th><th>User</th><th>Action</th><th>Page</th><th>From</th></tr>
+    {% for r in rows %}<tr><td class="nowrap">{{ r.at }}</td><td>{{ r.user_name }}</td><td>{{ r.endpoint }}</td><td class="muted">{{ r.path }}</td><td class="muted">{{ r.ip }}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Nothing recorded yet.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

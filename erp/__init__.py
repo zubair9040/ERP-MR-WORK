@@ -38,6 +38,9 @@ def create_app(test_config=None):
     os.makedirs(app.config["PDF_DIR"], exist_ok=True)
     db.init_db(app.config["DATABASE"])
     app.teardown_appcontext(db.close_db)
+    if not test_config and os.environ.get("ERP_NO_AUTO_BACKUP") != "1":
+        from .backup import start_auto_backup
+        start_auto_backup(app)
 
     open_endpoints = {"core.login", "core.setup", "static"}
 
@@ -56,6 +59,22 @@ def create_app(test_config=None):
             return redirect(url_for(home_endpoint()))
         if not allowed(request.endpoint, request.method):
             abort(403)
+
+    SKIP_AUDIT = {"static", "core.login"}
+
+    @app.after_request
+    def audit(resp):
+        """Who changed what: every save / delete / void (POST) is recorded with user, time and address."""
+        try:
+            if request.method == "POST" and request.endpoint not in SKIP_AUDIT and g.get("user") and resp.status_code < 400:
+                ids = {k: v for k, v in (request.view_args or {}).items()}
+                db.x("INSERT INTO audit_log (at, user_id, user_name, ip, method, endpoint, path, status, detail) VALUES (?,?,?,?,?,?,?,?,?)",
+                     (db.now(), g.user["id"], g.user["name"], request.remote_addr or "", request.method,
+                      request.endpoint or "", request.path, resp.status_code, str(ids) if ids else ""))
+                db.commit()
+        except Exception:  # noqa: BLE001 - never block a real save because logging failed
+            pass
+        return resp
 
     @app.after_request
     def security_headers(resp):

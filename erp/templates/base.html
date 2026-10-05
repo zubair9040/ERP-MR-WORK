@@ -71,7 +71,8 @@
       {% endif %}
       {% if can('admin.settings') or can('admin.users') or can('admin.import') %}
       <div class="navhead">Admin</div>
-      {% if can('admin.users') %}<a href="{{ url_for('core.users') }}" class="{{ 'on' if ep in ('core.users', 'core.user_form') }}">{{ icon('shield') }}<span>Users</span></a>
+      {% if can('admin.users') %}<a href="{{ url_for('core.audit_log') }}" class="{{ 'on' if ep == 'core.audit_log' }}">{{ icon('shield') }}<span>Audit log</span></a>
+      <a href="{{ url_for('core.users') }}" class="{{ 'on' if ep in ('core.users', 'core.user_form') }}">{{ icon('shield') }}<span>Users</span></a>
       <a href="{{ url_for('core.roles') }}" class="{{ 'on' if ep.startswith('core.role') }}">{{ icon('key') }}<span>Roles &amp; permissions</span></a>{% endif %}
       {% if can('admin.settings') %}
       <a href="{{ url_for('core.reps') }}" class="{{ 'on' if ep == 'core.reps' }}">{{ icon('rep') }}<span>Sales reps</span></a>

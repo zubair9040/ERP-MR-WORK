@@ -183,6 +183,10 @@ CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY, created_at TEXT, kind TEXT, customer_id INTEGER, ref_id INTEGER,
   period TEXT DEFAULT '', phone TEXT, status TEXT, detail TEXT, user TEXT);
 
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY, at TEXT, user_id INTEGER, user_name TEXT, ip TEXT, method TEXT, endpoint TEXT, path TEXT,
+  status INTEGER, detail TEXT DEFAULT '');
+
 CREATE INDEX IF NOT EXISTS ix_inv_cust ON invoices(customer_id, date);
 CREATE INDEX IF NOT EXISTS ix_pay_cust ON payments(customer_id, date);
 CREATE INDEX IF NOT EXISTS ix_lines_inv ON invoice_lines(invoice_id);
