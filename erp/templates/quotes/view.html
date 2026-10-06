@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Quotation {{ quote.number }}{% endblock %}
+{% block actions %}<a class="btn grey" target="_blank" href="{{ url_for('quotes.pdf', qid=quote.id) }}">{{ icon('pdf', 16) }} PDF</a>
+{% if can('quotes.create') and not quote.void %}<a class="btn grey" href="{{ url_for('quotes.new', qid=quote.id) }}">Edit</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card"><dl class="kv">
+    <dt>For</dt><dd><b>{{ quote.party }}</b>{% if quote.void %} <span class="tag void">VOID</span>{% endif %}</dd>
+    <dt>Date</dt><dd>{{ quote.date|d }}</dd><dt>Valid until</dt><dd>{{ quote.valid_until|d }}</dd>
+    {% if quote.subject %}<dt>Subject</dt><dd>{{ quote.subject }}</dd>{% endif %}
+    <dt>Status</dt><dd>{{ quote.status }}</dd>
+    <dt>Total</dt><dd><b style="font-size:18px">{{ cur }} {{ quote.total|money }}</b></dd></dl>
+    <p class="muted">A quotation is only a price offer. It is not an invoice and does not change any balance.</p></div>
+  {% if not quote.void and can('quotes.create') %}<div class="card">
+    <form method="post" action="{{ url_for('quotes.status', qid=quote.id) }}" class="rowform">{{ csrf_field() }}
+      <select name="status">{% for st in statuses %}<option {{ 'selected' if st == quote.status }}>{{ st }}</option>{% endfor %}</select><button class="btn light">Set status</button></form>
+    {% if can('quotes.void') %}<form method="post" action="{{ url_for('quotes.void', qid=quote.id) }}" onsubmit="return confirm('Void this quotation?')" style="margin-top:12px">{{ csrf_field() }}<button class="btn bad small">Void quotation</button></form>{% endif %}
+  </div>{% endif %}
+</div>
+<div class="card"><div class="tablewrap"><table>
+  <tr><th class="n">Qty</th><th>U/M</th><th>Code</th><th>Description</th><th class="n">Rate</th><th class="n">Amount</th></tr>
+  {% for l in lines %}<tr><td class="n">{{ '%g'|format(l.qty) }}</td><td>{{ l.unit }}</td><td><b>{{ l.code }}</b></td><td>{{ l.description }}</td><td class="n">{{ l.rate|money }}</td><td class="n">{{ l.amount|money }}</td></tr>{% endfor %}
+  {% if quote.tax %}<tr><td colspan="5">Tax {{ '%g'|format(quote.tax_rate) }}%</td><td class="n">{{ quote.tax|money }}</td></tr>{% endif %}
+  <tr class="total"><td colspan="5">Total {{ cur }}</td><td class="n">{{ quote.total|money }}</td></tr></table></div>
+  {% if quote.terms %}<p class="muted" style="white-space:pre-line"><b>Terms</b><br>{{ quote.terms }}</p>{% endif %}
+  {% if quote.notes %}<p class="muted" style="white-space:pre-line">{{ quote.notes }}</p>{% endif %}</div>
+{% endblock %}

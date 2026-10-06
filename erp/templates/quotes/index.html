@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Quotations{% endblock %}
+{% block actions %}{% if can('quotes.create') %}<a class="btn grey" href="{{ url_for('quotes.new') }}">{{ icon('plus', 16) }} New quotation</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters" method="get">
+  <select name="status" onchange="this.form.submit()"><option value="">All</option>{% for st in statuses %}<option {{ 'selected' if st == status }}>{{ st }}</option>{% endfor %}</select>
+  <input name="q" value="{{ s }}" placeholder="Search name, number or subject"><button class="btn">Search</button>
+</form>
+<div class="tablewrap"><table>
+<tr><th>#</th><th>Date</th><th>For</th><th>Subject</th><th>Valid until</th><th class="n">Total</th><th>Status</th></tr>
+{% for r in rows %}<tr class="{{ 'voided' if r.void }}"><td><a href="{{ url_for('quotes.view_one', qid=r.id) }}"><b>{{ r.number }}</b></a></td><td>{{ r.date|d }}</td><td>{{ r.party }}</td>
+  <td>{{ r.subject }}</td><td>{{ r.valid_until|d }}</td><td class="n">{{ r.total|money }}</td><td>{{ 'VOID' if r.void else r.status }}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No quotations yet.</td></tr>{% endfor %}
+</table></div></div>
+{% endblock %}

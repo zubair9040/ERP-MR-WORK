@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit quotation ' ~ quote.number if quote else 'New quotation' }}{% endblock %}
+{% block content %}
+<form method="post" class="card" style="max-width:980px">
+  {{ csrf_field() }}
+  <div class="grid2">
+    <div>
+      <label>Customer (or type a new name for someone not yet a customer)
+        <input list="custlist" id="custname" name="customer_name" value="{{ f.get('party') or f.get('customer_name', '') }}" autocomplete="off" required></label>
+      <input type="hidden" name="customer_id" id="custid" value="{{ f.get('customer_id') or '' }}">
+      <datalist id="custlist">{% for c in customers %}<option value="{{ c.name }}">{% endfor %}</datalist>
+      <label>Phone<input name="customer_phone" value="{{ f.get('customer_phone', '') }}"></label>
+      <label>Address<textarea name="customer_address" rows="2">{{ f.get('customer_address', '') }}</textarea></label>
+    </div>
+    <div>
+      <label>Company<select name="company_id">{% for co in companies %}<option value="{{ co.id }}" {{ 'selected' if f.get('company_id') == co.id }}>{{ co.name }}</option>{% endfor %}</select></label>
+      <label>Date<input type="date" name="date" value="{{ f.get('date', '') }}"></label>
+      <label>Valid until<input type="date" name="valid_until" value="{{ f.get('valid_until', '') }}"></label>
+      <label>Subject<input name="subject" value="{{ f.get('subject', '') }}" placeholder="e.g. Stationery supply for 2027"></label>
+    </div>
+  </div>
+  <h3 style="margin-top:14px">Items</h3>
+  <table id="qlines"><tr><th>Item code</th><th>Description</th><th>U/M</th><th class="n">Qty</th><th class="n">Rate</th><th></th></tr></table>
+  <p><button type="button" class="btn light" id="addq">{{ icon('plus', 16) }} Add line</button></p>
+  <div class="grid2"><label>Tax % (GST companies only)<input name="tax_rate" value="{{ f.get('tax_rate', '') }}"></label>
+    <label>Terms<textarea name="terms" rows="3">{{ f.get('terms', '') }}</textarea></label></div>
+  <label>Notes<textarea name="notes" rows="2">{{ f.get('notes', '') }}</textarea></label>
+  <button class="btn alt">Save quotation</button>
+</form>
+<datalist id="codelist">{% for i in items %}<option value="{{ i.code }}">{{ i.name }}</option>{% endfor %}</datalist>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const ITEMS = {{ items|map(attribute='code')|list|tojson }}, DATA = {{ items|map(attribute='description')|list|tojson }},
+        NAMES = {{ items|map(attribute='name')|list|tojson }}, UNITS = {{ items|map(attribute='unit')|list|tojson }}, PRICES = {{ items|map(attribute='price')|list|tojson }};
+  const LINES = {{ lines|tojson }};
+  const t = document.getElementById('qlines');
+  function add(l) {
+    l = l || {}; const r = t.insertRow();
+    r.innerHTML = '<td><input name="code" list="codelist" value="' + (l.code || '') + '" style="width:110px"></td><td><input name="description" value="' + (l.description || '').replace(/"/g, '&quot;') + '" style="width:100%"></td>' +
+      '<td><input name="unit" value="' + (l.unit || '') + '" style="width:60px"></td><td><input name="qty" value="' + (l.qty || '') + '" style="width:70px;text-align:right"></td>' +
+      '<td><input name="price" value="' + (l.price || '') + '" style="width:90px;text-align:right"></td><td><button type="button" class="btn light">×</button></td>';
+    const code = r.querySelector('[name=code]');
+    code.addEventListener('change', () => { const k = ITEMS.findIndex(c => c && c.toUpperCase() === code.value.trim().toUpperCase()); if (k < 0) return;
+      r.querySelector('[name=description]').value = DATA[k] || NAMES[k]; r.querySelector('[name=unit]').value = UNITS[k] || ''; r.querySelector('[name=price]').value = (PRICES[k] / 100).toFixed(2);
+      if (!r.querySelector('[name=qty]').value) r.querySelector('[name=qty]').value = 1; });
+    r.querySelector('button').onclick = () => r.remove();
+  }
+  document.getElementById('addq').onclick = () => add();
+  (LINES.length ? LINES : [{}, {}, {}]).forEach(add);
+  const cn = document.getElementById('custname'), ci = document.getElementById('custid');
+  const CUST = {{ customers|map(attribute='name')|list|tojson }}, IDS = {{ customers|map(attribute='id')|list|tojson }};
+  const ADDR = {{ customers|map(attribute='address')|list|tojson }};
+  cn.addEventListener('input', () => { const k = CUST.indexOf(cn.value); ci.value = k >= 0 ? IDS[k] : '';
+    if (k >= 0) { const a = document.querySelector('[name=customer_address]'); if (!a.value) a.value = ADDR[k] || ''; } });
+})();
+</script>
+{% endblock %}

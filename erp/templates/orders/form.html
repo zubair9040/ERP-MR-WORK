@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit order ' ~ order.number if order else 'New order' }}{% endblock %}
+{% block content %}
+<form method="post" class="card" id="oform" style="max-width:760px">
+  {{ csrf_field() }}
+  <input type="hidden" name="lat" id="lat"><input type="hidden" name="lng" id="lng">
+  <label>Shop / customer
+    <input list="custlist" id="custname" value="{{ f.get('customer_name', '') }}" placeholder="Start typing the shop name" autocomplete="off" required style="font-size:16px">
+    <input type="hidden" name="customer_id" id="custid" value="{{ f.get('customer_id', '') }}"></label>
+  <datalist id="custlist">{% for c in customers %}<option value="{{ c.name }}">{% endfor %}</datalist>
+  <h3 style="margin-top:18px">Items</h3>
+  <div id="rows"></div>
+  <p><button type="button" class="btn light" id="addrow">{{ icon('plus', 16) }} Add item</button></p>
+  <label>Note for the office (optional)<textarea name="notes" rows="2">{{ f.get('notes', '') }}</textarea></label>
+  <p style="font-size:18px"><b>Total {{ cur }} <span id="total">0</span></b></p>
+  <button class="btn alt" style="width:100%;font-size:16px;padding:12px">{{ 'Save changes' if order else 'Send order to office' }}</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const ITEMS = {{ items_json|tojson }}, EXISTING = {{ existing|tojson }}, CAN_PRICE = {{ 'true' if can_price else 'false' }};
+  const CUST = {{ customers|map(attribute='name')|list|tojson }}, CUST_IDS = {{ customers|map(attribute='id')|list|tojson }};
+  const byLabel = Object.fromEntries(ITEMS.map(i => [i.label, i]));
+  const rows = document.getElementById('rows');
+  const dl = document.createElement('datalist'); dl.id = 'itemlist';
+  ITEMS.forEach(i => { const o = document.createElement('option'); o.value = i.label; dl.appendChild(o); }); document.body.appendChild(dl);
+  function total() {
+    let t = 0;
+    rows.querySelectorAll('.orow').forEach(r => { t += (parseFloat(r.querySelector('[name=qty]').value) || 0) * (parseFloat(r.querySelector('[name=price]').value) || 0); });
+    document.getElementById('total').textContent = t.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  function addRow(item, qty, price) {
+    const d = document.createElement('div'); d.className = 'orow';
+    d.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 44px;gap:8px;margin-bottom:14px;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--line)';
+    d.innerHTML = '<input list="itemlist" class="iname" placeholder="Item code or name" style="font-size:16px;grid-column:1/-1"><input type="hidden" name="item_id">' +
+      '<input name="qty" type="number" step="any" min="0" inputmode="decimal" placeholder="Qty" style="font-size:16px">' +
+      '<input name="price" type="number" step="any" inputmode="decimal" placeholder="Rate" ' + (CAN_PRICE ? '' : 'readonly tabindex="-1"') + ' style="font-size:16px">' +
+      '<button type="button" class="btn light" title="Remove">×</button>';
+    const name = d.querySelector('.iname'), idf = d.querySelector('[name=item_id]'), qf = d.querySelector('[name=qty]'), pf = d.querySelector('[name=price]');
+    function pick() { const it = byLabel[name.value]; if (it) { idf.value = it.id; pf.value = it.price; } else idf.value = ''; total(); }
+    name.addEventListener('input', pick); name.addEventListener('change', pick); qf.addEventListener('input', total); pf.addEventListener('input', total);
+    d.querySelector('button').onclick = () => { d.remove(); total(); };
+    if (item) { const it = ITEMS.find(i => i.id === item); if (it) { name.value = it.label; idf.value = it.id; } qf.value = qty; pf.value = price; }
+    rows.appendChild(d); total(); if (!item) name.focus();
+  }
+  document.getElementById('addrow').onclick = () => addRow();
+  if (EXISTING.length) EXISTING.forEach(l => addRow(l.item_id, l.qty, l.price)); else addRow();
+  const cn = document.getElementById('custname'), ci = document.getElementById('custid');
+  cn.addEventListener('input', () => { const k = CUST.indexOf(cn.value); ci.value = k >= 0 ? CUST_IDS[k] : ''; });
+  document.getElementById('oform').addEventListener('submit', e => { if (!ci.value) { e.preventDefault(); alert('Choose the shop from the list.'); } });
+  if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { document.getElementById('lat').value = p.coords.latitude; document.getElementById('lng').value = p.coords.longitude; }, () => {}, {timeout: 8000});
+})();
+</script>
+{% endblock %}

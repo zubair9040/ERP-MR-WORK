@@ -37,6 +37,8 @@
       <div class="navhead">Sales</div>
       {% if can('customers.view') %}<a href="{{ url_for('sales.customers') }}" class="{{ 'on' if ep.startswith('sales.customer') }}">{{ icon('users') }}<span>Customers</span></a>{% endif %}
       {% if can('invoices.view') %}<a href="{{ url_for('sales.invoices') }}" class="{{ 'on' if ep.startswith('sales.invoice') }}">{{ icon('invoice') }}<span>Invoices</span></a>{% endif %}
+      {% if can('orders.view') or can('orders.create') %}{% set oc = orders_pending() if can('orders.approve') else 0 %}<a href="{{ url_for('orders.index') }}" class="{{ 'on' if ep.startswith('orders.') }}">{{ icon('list') }}<span>Orders</span><em class="nav-badge" id="orders-badge" {% if not oc %}style="display:none"{% endif %}>{{ oc }}</em></a>{% endif %}
+      {% if can('quotes.view') %}<a href="{{ url_for('quotes.index') }}" class="{{ 'on' if ep.startswith('quotes.') }}">{{ icon('tag') }}<span>Quotations</span></a>{% endif %}
       {% if can('invoices.view') %}<a href="{{ url_for('po.index') }}" class="{{ 'on' if ep.startswith('po.') }}">{{ icon('layers') }}<span>PO batch billing</span></a>{% endif %}
       {% if can('payments.view') %}<a href="{{ url_for('sales.payments') }}" class="{{ 'on' if ep.startswith('sales.payment') }}">{{ icon('wallet') }}<span>Collections</span></a>{% endif %}
       {% if can('invoices.view') or can('payments.view') %}<a href="{{ url_for('sales.transactions') }}" class="{{ 'on' if ep == 'sales.transactions' }}">{{ icon('list') }}<span>All transactions</span></a>{% endif %}
@@ -176,6 +178,27 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') open(false); });
 })();
 </script>
+{% if can('orders.approve') %}
+<div id="order-toast" style="display:none;position:fixed;right:18px;bottom:18px;z-index:99;background:#0f172a;color:#fff;padding:14px 18px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);max-width:320px"></div>
+<script>
+(function () {
+  let last = 0, started = false;
+  const badge = document.getElementById('orders-badge'), toast = document.getElementById('order-toast');
+  async function poll() {
+    try {
+      const r = await fetch('{{ url_for("orders.count") }}', {credentials: 'same-origin'}); const j = await r.json();
+      if (badge) { badge.textContent = j.pending; badge.style.display = j.pending ? '' : 'none'; }
+      if (started && j.last_id > last && j.latest) {
+        toast.innerHTML = '<b>New order ' + j.latest.number + '</b><br>' + j.latest.customer + '<br><small>taken by ' + j.latest.by + '</small><br><a href="{{ url_for("orders.index") }}" style="color:#a5b4fc">Open orders</a>';
+        toast.style.display = 'block'; setTimeout(() => toast.style.display = 'none', 15000);
+      }
+      last = Math.max(last, j.last_id); started = true;
+    } catch (e) {}
+  }
+  poll(); setInterval(poll, 30000);
+})();
+</script>
+{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

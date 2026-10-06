@@ -124,7 +124,7 @@ def create_app(test_config=None):
     @app.context_processor
     def ctx():
         s = db.settings()
-        return dict(csrf_field=csrf_field, csrf_token=csrf_token, can=can, is_rep=is_rep, is_store=is_store, sees_cost=sees_cost, role_name=role_name, void_pending=_void_pending, pending_count=_pending_count, S=s,
+        return dict(csrf_field=csrf_field, csrf_token=csrf_token, can=can, is_rep=is_rep, is_store=is_store, sees_cost=sees_cost, role_name=role_name, void_pending=_void_pending, pending_count=_pending_count, orders_pending=_orders_pending, S=s,
                     cur=s.get("currency", "Rs"), today=db.today(), hr_allowed=hr_allowed,
                     all_companies=_companies, cur_company=_cur_company, co_tag=_co_tag, co_logo=_co_logo)
 
@@ -152,6 +152,10 @@ def create_app(test_config=None):
     app.register_blueprint(po_bp)
     from .designer import bp as pd_bp
     app.register_blueprint(pd_bp)
+    from .orders import bp as orders_bp, pending_count as _orders_pending
+    from .quotes import bp as quotes_bp
+    app.register_blueprint(orders_bp)
+    app.register_blueprint(quotes_bp)
     app.register_blueprint(hr_bp)
     app.register_blueprint(ops_bp)
     app.register_blueprint(wh_bp)

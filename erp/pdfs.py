@@ -526,6 +526,39 @@ def credit_note(path, s, doc, lines, customer):
     return path
 
 
+def quotation(path, s, quote, lines):
+    """Quotation PDF: a price offer. It is not an invoice and owes nothing."""
+    cur = s.get("currency", "Rs")
+    from .lines import qty_text
+    info = [["Quotation #", str(quote["number"])], ["Date", nice_date(quote["date"])]]
+    if quote["valid_until"]:
+        info.append(["Valid until", nice_date(quote["valid_until"])])
+    story = [_header(s, "QUOTATION", info), Spacer(1, 8 * mm)]
+    story += [Paragraph("<b>Prepared for</b>", N), P(quote["party"])]
+    if quote["addr"]:
+        story.append(P(quote["addr"]))
+    if quote["phone"]:
+        story.append(P(quote["phone"]))
+    if quote["subject"]:
+        story += [Spacer(1, 3 * mm), Paragraph(f"<b>Subject:</b> {quote['subject']}", N)]
+    story.append(Spacer(1, 6 * mm))
+    rows = [["QTY", "U/M", "ITEM CODE", "DESCRIPTION", "RATE", "AMOUNT"]]
+    for l in lines:
+        rows.append([qty_text(l), P(l["unit"]), P(l["code"]), P(l["description"]), fmt(l["rate"]), fmt(l["amount"])])
+    totals = []
+    if quote["tax"]:
+        totals.append(["", "", "", "", f"Tax {quote['tax_rate']:g}%", fmt(quote["tax"])])
+    totals.append(["", "", "", "", f"TOTAL {cur}", fmt(quote["total"])])
+    story.append(_mgrid(s, rows + totals, [16 * mm, 16 * mm, 28 * mm, 70 * mm, 24 * mm, 26 * mm], [0, 4, 5], len(totals)))
+    if quote["terms"]:
+        story += [Spacer(1, 6 * mm), Paragraph("<b>Terms</b>", N), P(quote["terms"], SMALL)]
+    if quote["notes"]:
+        story += [Spacer(1, 3 * mm), P(quote["notes"], SMALL)]
+    story += [Spacer(1, 6 * mm), P("This is a quotation, not an invoice. Prices are valid until the date shown.", SMALL)]
+    _build(path, f"Quotation {quote['number']}", story, s)
+    return path
+
+
 def wh_document(path, s, doc, lines, T, number, show_cost=False, values=None):
     """Printable warehouse document: goods receipt, delivery challan, transfer, adjustment, stock count."""
     dtype = doc["type"]

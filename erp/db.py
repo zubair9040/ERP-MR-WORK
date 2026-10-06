@@ -187,6 +187,30 @@ CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY, at TEXT, user_id INTEGER, user_name TEXT, ip TEXT, method TEXT, endpoint TEXT, path TEXT,
   status INTEGER, detail TEXT DEFAULT '');
 
+CREATE TABLE IF NOT EXISTS quotes (
+  id INTEGER PRIMARY KEY, number INTEGER UNIQUE NOT NULL, date TEXT NOT NULL, valid_until TEXT DEFAULT '',
+  company_id INTEGER, customer_id INTEGER, customer_name TEXT DEFAULT '', customer_phone TEXT DEFAULT '', customer_address TEXT DEFAULT '',
+  subject TEXT DEFAULT '', notes TEXT DEFAULT '', terms TEXT DEFAULT '', status TEXT DEFAULT 'Draft',
+  subtotal INTEGER DEFAULT 0, tax_rate REAL DEFAULT 0, tax INTEGER DEFAULT 0, total INTEGER DEFAULT 0,
+  void INTEGER DEFAULT 0, created_by INTEGER, created_at TEXT, updated_at TEXT);
+
+CREATE TABLE IF NOT EXISTS quote_lines (
+  id INTEGER PRIMARY KEY, quote_id INTEGER NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  item_id INTEGER, code TEXT DEFAULT '', description TEXT DEFAULT '', unit TEXT DEFAULT '',
+  qty REAL, rate INTEGER DEFAULT 0, amount INTEGER DEFAULT 0, sort INTEGER DEFAULT 0);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY, number INTEGER UNIQUE NOT NULL, date TEXT NOT NULL, customer_id INTEGER NOT NULL REFERENCES customers(id),
+  rep_id INTEGER, notes TEXT DEFAULT '', status TEXT DEFAULT 'Pending', total INTEGER DEFAULT 0,
+  lat REAL, lng REAL, created_by INTEGER, created_by_name TEXT DEFAULT '', created_at TEXT,
+  decided_by TEXT DEFAULT '', decided_at TEXT, reject_reason TEXT DEFAULT '', invoice_id INTEGER, seen INTEGER DEFAULT 0);
+
+CREATE TABLE IF NOT EXISTS order_lines (
+  id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  item_id INTEGER, code TEXT DEFAULT '', description TEXT DEFAULT '', unit TEXT DEFAULT '',
+  qty REAL, rate INTEGER DEFAULT 0, amount INTEGER DEFAULT 0, sort INTEGER DEFAULT 0);
+
+CREATE INDEX IF NOT EXISTS ix_orders_status ON orders(status, date);
 CREATE INDEX IF NOT EXISTS ix_inv_cust ON invoices(customer_id, date);
 CREATE INDEX IF NOT EXISTS ix_pay_cust ON payments(customer_id, date);
 CREATE INDEX IF NOT EXISTS ix_lines_inv ON invoice_lines(invoice_id);
