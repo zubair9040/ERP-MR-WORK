@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=3">
+<link rel="manifest" href="{{ url_for('pwa_manifest') }}"><meta name="theme-color" content="#0f1224">
+<meta name="apple-mobile-web-app-capable" content="yes"><link rel="apple-touch-icon" href="{{ url_for('pwa_icon', size=192) }}">
 </head>
 <body>
 {% if g.user %}
@@ -199,6 +201,7 @@
 })();
 </script>
 {% endif %}
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

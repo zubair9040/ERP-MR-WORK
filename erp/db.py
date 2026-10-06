@@ -296,6 +296,7 @@ MIGRATIONS = {
     "payroll_lines": [("loan_ded", "INTEGER DEFAULT 0")],
     "wh_lines": [("ctn", "REAL"), ("ppc", "REAL"), ("loose", "REAL")],
     "credit_notes": [("company_id", "INTEGER")],
+    "quotes": [("invoice_id", "INTEGER")],
     "purchases": [("company_id", "INTEGER")],
     "supplier_payments": [("company_id", "INTEGER")],
     "expenses": [("company_id", "INTEGER")],

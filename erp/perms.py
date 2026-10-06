@@ -179,7 +179,7 @@ RULES = {
     "po.send": "invoices.send", "po.void": "invoices.void", "po.pay": "payments.create", "po.attach": "invoices.edit",
     "po.detach": "invoices.edit", "po.branch_save": "customers.edit", "po.branch_import": "customers.edit",
     "quotes.index": "quotes.view", "quotes.view_one": "quotes.view", "quotes.pdf": "quotes.view", "quotes.new": "quotes.create",
-    "quotes.status": "quotes.create", "quotes.void": "quotes.void",
+    "quotes.status": "quotes.create", "quotes.void": "quotes.void", "quotes.to_invoice": ("invoices.create",),
     "orders.index": ("orders.view", "orders.create"), "orders.view_one": ("orders.view", "orders.create"),
     "orders.new": ("orders.create", "orders.approve"), "orders.approve": "orders.approve",
     "orders.reject": "orders.approve", "orders.cancel": ("orders.create", "orders.approve"), "orders.count": ("orders.view", "orders.create"),

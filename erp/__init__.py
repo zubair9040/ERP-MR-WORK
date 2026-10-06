@@ -42,7 +42,7 @@ def create_app(test_config=None):
         from .backup import start_auto_backup
         start_auto_backup(app)
 
-    open_endpoints = {"core.login", "core.setup", "static"}
+    open_endpoints = {"core.login", "core.setup", "static", "pwa_manifest", "pwa_sw", "pwa_icon"}
 
     @app.before_request
     def before():
@@ -59,6 +59,43 @@ def create_app(test_config=None):
             return redirect(url_for(home_endpoint()))
         if not allowed(request.endpoint, request.method):
             abort(403)
+
+    @app.route("/manifest.webmanifest")
+    def pwa_manifest():
+        s = db.settings()
+        name = s.get("company_name") or "ERP"
+        from flask import jsonify
+        return jsonify(name=f"{name} ERP", short_name=name[:12], start_url="/", scope="/", display="standalone",
+                       background_color="#f4f5fa", theme_color="#0f1224",
+                       icons=[{"src": url_for("pwa_icon", size=n), "sizes": f"{n}x{n}", "type": "image/png", "purpose": "any maskable"} for n in (192, 512)])
+
+    @app.route("/sw.js")
+    def pwa_sw():
+        from flask import Response
+        return Response("self.addEventListener('install', e => self.skipWaiting());\n"
+                        "self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));\n"
+                        "self.addEventListener('fetch', () => {});\n", mimetype="application/javascript",
+                        headers={"Service-Worker-Allowed": "/"})
+
+    @app.route("/pwa-icon-<int:size>.png")
+    def pwa_icon(size):
+        import io
+        from flask import send_file
+        from PIL import Image, ImageDraw, ImageFont
+        size = 512 if size > 300 else 192
+        im = Image.new("RGB", (size, size), "#4f46e5")
+        dr = ImageDraw.Draw(im)
+        txt = "".join(w[0] for w in (db.settings().get("company_name") or "ERP").split()[:2]).upper() or "ERP"
+        try:
+            font = ImageFont.truetype("DejaVuSans-Bold.ttf", int(size * 0.42))
+        except OSError:
+            font = ImageFont.load_default()
+        w = dr.textlength(txt, font=font)
+        dr.text(((size - w) / 2, size * 0.28), txt, fill="white", font=font)
+        buf = io.BytesIO()
+        im.save(buf, "PNG")
+        buf.seek(0)
+        return send_file(buf, mimetype="image/png", max_age=3600)
 
     SKIP_AUDIT = {"static", "core.login"}
 

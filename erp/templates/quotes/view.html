@@ -10,7 +10,10 @@
     {% if quote.subject %}<dt>Subject</dt><dd>{{ quote.subject }}</dd>{% endif %}
     <dt>Status</dt><dd>{{ quote.status }}</dd>
     <dt>Total</dt><dd><b style="font-size:18px">{{ cur }} {{ quote.total|money }}</b></dd></dl>
-    <p class="muted">A quotation is only a price offer. It is not an invoice and does not change any balance.</p></div>
+    {% if quote.invoice_id %}<p><span class="tag paid">Invoiced</span> <a href="{{ url_for('sales.invoice_view', iid=quote.invoice_id) }}">Open the invoice</a></p>
+    {% elif not quote.void and can('invoices.create') %}<form method="post" action="{{ url_for('quotes.to_invoice', qid=quote.id) }}" onsubmit="return confirm('Create an invoice from this quotation?')">{{ csrf_field() }}
+      <button class="btn alt">{{ icon('check', 16) }} Convert to invoice</button></form>{% endif %}
+    <p class="muted">Until you press Convert, a quotation is only a price offer. It changes no balance.</p></div>
   {% if not quote.void and can('quotes.create') %}<div class="card">
     <form method="post" action="{{ url_for('quotes.status', qid=quote.id) }}" class="rowform">{{ csrf_field() }}
       <select name="status">{% for st in statuses %}<option {{ 'selected' if st == quote.status }}>{{ st }}</option>{% endfor %}</select><button class="btn light">Set status</button></form>

@@ -163,9 +163,9 @@ def view_one(oid):
     return render_template("orders/view.html", o=o, lines=lines, inv=inv, cur=settings().get("currency", "Rs"))
 
 
-def create_invoice(o, lines):
-    """Turns an approved order into a normal invoice (same numbering, due date and tax as a hand-made one)."""
-    c = q("SELECT * FROM customers WHERE id = ?", (o["customer_id"],), one=True)
+def make_invoice(customer_id, rep_id, note, lines):
+    """Creates a normal invoice (same numbering, due date and tax as a hand-made one) from plain lines. Used by orders and quotations."""
+    c = q("SELECT * FROM customers WHERE id = ?", (customer_id,), one=True)
     co = get_company(c["company_id"]) or get_company(default_company_id())
     d = today()
     due = (date.fromisoformat(d) + timedelta(days=c["terms_days"] or 0)).isoformat()
@@ -174,13 +174,16 @@ def create_invoice(o, lines):
     tax = int(round(subtotal * tax_rate / 100))
     iid = x("""INSERT INTO invoices (number, date, due_date, customer_id, rep_id, notes, tax_rate, subtotal, discount, tax, total,
                created_by, created_at, company_id) VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?,?)""",
-            (next_invoice_number(co["id"]), d, due, o["customer_id"], o["rep_id"] or c["rep_id"],
-             f"From order {o['number']} taken by {o['created_by_name']}" + (f"\n{o['notes']}" if o["notes"] else ""),
+            (next_invoice_number(co["id"]), d, due, customer_id, rep_id or c["rep_id"], note,
              tax_rate, subtotal, tax, subtotal + tax, g.user["id"], now(), co["id"]))
-    for l in lines:
+    for n, l in enumerate(lines, start=1):
         x("""INSERT INTO invoice_lines (invoice_id, item_id, code, description, unit, ctn_qty, qty, rate, percent, amount, kind, sort)
-             VALUES (?,?,?,?,?,'',?,?,NULL,?,'item',?)""", (iid, l["item_id"], l["code"], l["description"], l["unit"], l["qty"], l["rate"], l["amount"], l["sort"]))
+             VALUES (?,?,?,?,?,'',?,?,NULL,?,'item',?)""", (iid, l["item_id"], l["code"], l["description"], l["unit"], l["qty"], l["rate"], l["amount"], n))
     return iid
+
+
+def create_invoice(o, lines):
+    return make_invoice(o["customer_id"], o["rep_id"], f"From order {o['number']} taken by {o['created_by_name']}" + (f"\n{o['notes']}" if o["notes"] else ""), lines)
 
 
 @bp.route("/<int:oid>/approve", methods=["POST"])

@@ -110,3 +110,46 @@ def test_pages_load_for_booker(app):
     booker = _client(app, "rizwan", "rizwan123")
     for url in ("/orders/", "/orders/new", "/quotations/"):
         assert booker.get(url).status_code == 200, url
+
+
+def test_quotation_converts_to_invoice_once(app):
+    admin = _client(app, "admin", "admin12345")
+    with app.app_context():
+        cid = q("SELECT id FROM customers WHERE active = 1 LIMIT 1", one=True)["id"]
+        n_inv = q("SELECT COUNT(*) AS n FROM invoices", one=True)["n"]
+    admin.post("/quotations/new", data={"_csrf": _tok(admin, "/quotations/new"), "customer_id": cid, "customer_name": "x",
+                                        "code": [""], "description": ["Gem clips"], "unit": ["Box"], "qty": ["4"], "price": ["460"]})
+    with app.app_context():
+        qt = q("SELECT * FROM quotes ORDER BY id DESC", one=True)
+        qid = qt["id"]
+    assert "Convert to invoice" in admin.get(f"/quotations/{qid}").text
+    r = admin.post(f"/quotations/{qid}/to-invoice", data={"_csrf": _tok(admin, f"/quotations/{qid}")})
+    assert r.status_code == 302
+    admin.post(f"/quotations/{qid}/to-invoice", data={"_csrf": _tok(admin, f"/quotations/{qid}")})
+    with app.app_context():
+        qt = q("SELECT * FROM quotes WHERE id = ?", (qid,), one=True)
+        assert qt["invoice_id"] and qt["status"] == "Accepted"
+        assert q("SELECT COUNT(*) AS n FROM invoices", one=True)["n"] == n_inv + 1
+        inv = q("SELECT * FROM invoices WHERE id = ?", (qt["invoice_id"],), one=True)
+        assert inv["subtotal"] == 4 * 46000 and inv["customer_id"] == cid
+
+
+def test_prospect_quotation_cannot_convert_until_customer_chosen(app):
+    admin = _client(app, "admin", "admin12345")
+    admin.post("/quotations/new", data={"_csrf": _tok(admin, "/quotations/new"), "customer_name": "Walk-in Prospect", "customer_id": "",
+                                        "code": [""], "description": ["Pens"], "unit": [""], "qty": ["1"], "price": ["10"]})
+    with app.app_context():
+        qid = q("SELECT id FROM quotes ORDER BY id DESC", one=True)["id"]
+        n_inv = q("SELECT COUNT(*) AS n FROM invoices", one=True)["n"]
+    admin.post(f"/quotations/{qid}/to-invoice", data={"_csrf": _tok(admin, f"/quotations/{qid}")})
+    with app.app_context():
+        assert q("SELECT COUNT(*) AS n FROM invoices", one=True)["n"] == n_inv
+
+
+def test_installable_app_files_are_public(app):
+    c = app.test_client()
+    m = c.get("/manifest.webmanifest")
+    assert m.status_code == 200 and m.json["display"] == "standalone"
+    assert c.get("/sw.js").status_code == 200
+    ic = c.get("/pwa-icon-192.png")
+    assert ic.status_code == 200 and ic.data[:4] == b"\x89PNG"

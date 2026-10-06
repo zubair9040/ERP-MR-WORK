@@ -152,3 +152,25 @@ def void(qid):
     commit()
     flash("Quotation voided.", "ok")
     return redirect(url_for("quotes.index"))
+
+
+@bp.route("/<int:qid>/to-invoice", methods=["POST"])
+def to_invoice(qid):
+    """Turns this quotation into a real invoice (once). Needs an existing customer."""
+    from .orders import make_invoice
+    quote = _get(qid)
+    if quote["void"]:
+        abort(404)
+    if quote["invoice_id"]:
+        flash("This quotation was already turned into an invoice.", "err")
+        return redirect(url_for("sales.invoice_view", iid=quote["invoice_id"]))
+    if not quote["customer_id"]:
+        flash("This quotation is for someone who is not a customer yet. Add them under Customers, then edit the quotation and pick them.", "err")
+        return redirect(url_for("quotes.view_one", qid=qid))
+    lines = q("SELECT * FROM quote_lines WHERE quote_id = ? ORDER BY sort", (qid,))
+    iid = make_invoice(quote["customer_id"], None, f"From quotation {quote['number']}" + (f"\n{quote['subject']}" if quote["subject"] else ""), lines)
+    x("UPDATE quotes SET status = 'Accepted', invoice_id = ?, updated_at = ? WHERE id = ?", (iid, now(), qid))
+    commit()
+    n = q("SELECT number FROM invoices WHERE id = ?", (iid,), one=True)["number"]
+    flash(f"Invoice {n} created from quotation {quote['number']}.", "ok")
+    return redirect(url_for("sales.invoice_view", iid=iid))
