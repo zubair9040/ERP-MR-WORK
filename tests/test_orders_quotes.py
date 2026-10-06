@@ -153,3 +153,27 @@ def test_installable_app_files_are_public(app):
     assert c.get("/sw.js").status_code == 200
     ic = c.get("/pwa-icon-192.png")
     assert ic.status_code == 200 and ic.data[:4] == b"\x89PNG"
+
+
+def test_quotation_send_by_whatsapp_and_email_in_test_mode(app):
+    from erp.db import commit, set_setting
+    with app.app_context():  # an earlier test saved the settings form, which can switch test mode off
+        set_setting("wa_dry_run", "1")
+        set_setting("email_dry_run", "1")
+        commit()
+    admin = _client(app, "admin", "admin12345")
+    admin.post("/quotations/new", data={"_csrf": _tok(admin, "/quotations/new"), "customer_name": "Prospect Mart", "customer_id": "",
+                                        "customer_phone": "0300-5551234", "customer_email": "buyer@example.com",
+                                        "code": [""], "description": ["Files"], "unit": ["Doz"], "qty": ["3"], "price": ["100"]})
+    with app.app_context():
+        qid = q("SELECT id FROM quotes ORDER BY id DESC", one=True)["id"]
+    page = admin.get(f"/quotations/{qid}").text
+    assert "buyer@example.com" in page and "0300-5551234" in page
+    for route, data in (("send-whatsapp", {}), ("send-email", {})):
+        r = admin.post(f"/quotations/{qid}/{route}", data={"_csrf": _tok(admin, f"/quotations/{qid}"), **data}, follow_redirects=True)
+        assert r.status_code == 200 and "test mode" in r.text, route
+    with app.app_context():
+        kinds = {(m["kind"], m["channel"], m["status"]) for m in q("SELECT * FROM messages WHERE ref_id = ? AND kind = 'quotation'", (qid,))}
+        assert ("quotation", "whatsapp", "test") in kinds and ("quotation", "email", "test") in kinds
+        assert q("SELECT status FROM quotes WHERE id = ?", (qid,), one=True)["status"] == "Sent"
+    assert admin.get("/reports/messages").status_code == 200

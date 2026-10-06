@@ -412,3 +412,41 @@ def send_by(c, whatsapp_fn, email_fn):
     if pref in ("email", "both"):
         out.append(email_fn())
     return out
+
+
+# ---- quotations ------------------------------------------------------------------------------
+def quote_pdf(qid):
+    from .companies import pdf_settings
+    qt = q("""SELECT q.*, COALESCE(c.name, q.customer_name) AS party, COALESCE(c.address, q.customer_address) AS addr,
+              COALESCE(c.whatsapp, q.customer_phone) AS phone FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id WHERE q.id = ?""",
+           (qid,), one=True)
+    lines = q("SELECT * FROM quote_lines WHERE quote_id = ? ORDER BY sort", (qid,))
+    return pdfs.quotation(_pdf_path(f"Quotation_{qt['number']}.pdf"), pdf_settings(qt["company_id"]), qt, lines)
+
+
+def _quote_party(qid):
+    """The quotation plus a customer-like record (a prospect has no customer row, so one is made up for sending)."""
+    qt = q("SELECT * FROM quotes WHERE id = ?", (qid,), one=True)
+    c = q("SELECT * FROM customers WHERE id = ?", (qt["customer_id"],), one=True) if qt["customer_id"] else None
+    party = dict(c) if c else {"id": None, "name": qt["customer_name"], "whatsapp": qt["customer_phone"], "contact": "",
+                               "email": qt["customer_email"], "company_id": qt["company_id"]}
+    return qt, party
+
+
+def send_quote(qid, phone=None):
+    qt, c = _quote_party(qid)
+    cur = settings().get("currency", "Rs")
+    params = [c["name"], qt["number"], f"{cur} {fmt(qt['total'])}", nice_date(qt["valid_until"] or qt["date"])]
+    return _deliver("quotation", c, qid, phone, settings().get("wa_quotation_template"), quote_pdf(qid), params, f"Quotation {qt['number']}")
+
+
+def email_quote(qid, to=None):
+    from .companies import co_settings
+    qt, c = _quote_party(qid)
+    s = co_settings(qt["company_id"])
+    cur = s.get("currency", "Rs")
+    lines = [f"Please find attached our quotation no. {qt['number']} dated {nice_date(qt['date'])}"
+             + (f" for {qt['subject']}." if qt["subject"] else "."),
+             f"Total: {cur} {fmt(qt['total'])}. Valid until {nice_date(qt['valid_until'] or qt['date'])}."]
+    return _deliver_email("quotation", c, qid, to, f"Quotation {qt['number']} from {s.get('company_name', '')}", lines,
+                          quote_pdf(qid), f"Quotation {qt['number']}")

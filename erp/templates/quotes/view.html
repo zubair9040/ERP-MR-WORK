@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Quotation {{ quote.number }}{% endblock %}
 {% block actions %}<a class="btn grey" target="_blank" href="{{ url_for('quotes.pdf', qid=quote.id) }}">{{ icon('pdf', 16) }} PDF</a>
+<a class="btn light" download href="{{ url_for('quotes.pdf', qid=quote.id) }}">{{ icon('download', 16) }} Download</a>
 {% if can('quotes.create') and not quote.void %}<a class="btn grey" href="{{ url_for('quotes.new', qid=quote.id) }}">Edit</a>{% endif %}{% endblock %}
 {% block content %}
 <div class="grid2">
@@ -17,6 +18,11 @@
   {% if not quote.void and can('quotes.create') %}<div class="card">
     <form method="post" action="{{ url_for('quotes.status', qid=quote.id) }}" class="rowform">{{ csrf_field() }}
       <select name="status">{% for st in statuses %}<option {{ 'selected' if st == quote.status }}>{{ st }}</option>{% endfor %}</select><button class="btn light">Set status</button></form>
+    <h3 style="margin-top:16px">Send this quotation</h3>
+    <form method="post" action="{{ url_for('quotes.send_whatsapp', qid=quote.id) }}" class="rowform" style="margin-bottom:8px">{{ csrf_field() }}
+      <input name="phone" value="{{ quote.phone or '' }}" placeholder="WhatsApp number" style="width:170px"><button class="btn alt small">{{ icon('whatsapp', 16) }} WhatsApp (PDF)</button></form>
+    <form method="post" action="{{ url_for('quotes.send_email', qid=quote.id) }}" class="rowform">{{ csrf_field() }}
+      <input name="to" value="{{ quote.email or '' }}" placeholder="Email address" style="width:220px"><button class="btn light small">{{ icon('send', 16) }} Email (PDF)</button></form>
     {% if can('quotes.void') %}<form method="post" action="{{ url_for('quotes.void', qid=quote.id) }}" onsubmit="return confirm('Void this quotation?')" style="margin-top:12px">{{ csrf_field() }}<button class="btn bad small">Void quotation</button></form>{% endif %}
   </div>{% endif %}
 </div>

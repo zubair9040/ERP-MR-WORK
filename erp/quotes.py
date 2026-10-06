@@ -93,12 +93,12 @@ def new(qid=None):
                 subtotal, tax_rate, tax, subtotal + tax)
         if quote:
             x("""UPDATE quotes SET date=?, valid_until=?, company_id=?, customer_id=?, customer_name=?, customer_phone=?, customer_address=?,
-                 subject=?, notes=?, terms=?, subtotal=?, tax_rate=?, tax=?, total=?, updated_at=? WHERE id=?""", vals + (now(), qid))
+                 subject=?, notes=?, terms=?, subtotal=?, tax_rate=?, tax=?, total=?, customer_email=?, updated_at=? WHERE id=?""", vals + (f.get("customer_email", "").strip(), now(), qid))
             x("DELETE FROM quote_lines WHERE quote_id = ?", (qid,))
         else:
             qid = x("""INSERT INTO quotes (number, date, valid_until, company_id, customer_id, customer_name, customer_phone, customer_address,
-                       subject, notes, terms, subtotal, tax_rate, tax, total, status, created_by, created_at)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Draft',?,?)""", (_next_number(),) + vals + (g.user["id"], now()))
+                       subject, notes, terms, subtotal, tax_rate, tax, total, status, created_by, created_at, customer_email)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Draft',?,?,?)""", (_next_number(),) + vals + (g.user["id"], now(), f.get("customer_email", "").strip()))
         for l in lines:
             x("""INSERT INTO quote_lines (quote_id, item_id, code, description, unit, qty, rate, amount, sort) VALUES (?,?,?,?,?,?,?,?,?)""",
               (qid, l["item_id"], l["code"], l["description"], l["unit"], l["qty"], l["rate"], l["amount"], l["sort"]))
@@ -115,7 +115,8 @@ def new(qid=None):
 
 def _get(qid):
     quote = q("""SELECT q.*, COALESCE(c.name, q.customer_name) AS party, COALESCE(c.address, q.customer_address) AS addr,
-                 COALESCE(c.whatsapp, q.customer_phone) AS phone FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id WHERE q.id = ?""",
+                 COALESCE(c.whatsapp, q.customer_phone) AS phone, COALESCE(NULLIF(c.email, ''), q.customer_email) AS email
+                 FROM quotes q LEFT JOIN customers c ON c.id = q.customer_id WHERE q.id = ?""",
               (qid,), one=True)
     return quote or abort(404)
 
@@ -129,12 +130,9 @@ def view_one(qid):
 
 @bp.route("/<int:qid>.pdf")
 def pdf(qid):
-    from .notify import _pdf_path
-    from .pdfs import quotation
-    quote = _get(qid)
-    lines = q("SELECT * FROM quote_lines WHERE quote_id = ? ORDER BY sort", (qid,))
-    return send_file(quotation(_pdf_path(f"Quotation_{quote['number']}.pdf"), pdf_settings(quote["company_id"]), quote, lines),
-                     mimetype="application/pdf")
+    from .notify import quote_pdf
+    _get(qid)
+    return send_file(quote_pdf(qid), mimetype="application/pdf")
 
 
 @bp.route("/<int:qid>/status", methods=["POST"])
@@ -174,3 +172,27 @@ def to_invoice(qid):
     n = q("SELECT number FROM invoices WHERE id = ?", (iid,), one=True)["number"]
     flash(f"Invoice {n} created from quotation {quote['number']}.", "ok")
     return redirect(url_for("sales.invoice_view", iid=iid))
+
+
+@bp.route("/<int:qid>/send-whatsapp", methods=["POST"])
+def send_whatsapp(qid):
+    from . import notify
+    _get(qid)
+    ok, msg = notify.send_quote(qid, request.form.get("phone", "").strip() or None)
+    if ok:
+        x("UPDATE quotes SET status = CASE WHEN status = 'Draft' THEN 'Sent' ELSE status END WHERE id = ?", (qid,))
+        commit()
+    flash(msg, "ok" if ok else "err")
+    return redirect(url_for("quotes.view_one", qid=qid))
+
+
+@bp.route("/<int:qid>/send-email", methods=["POST"])
+def send_email(qid):
+    from . import notify
+    _get(qid)
+    ok, msg = notify.email_quote(qid, request.form.get("to", "").strip() or None)
+    if ok:
+        x("UPDATE quotes SET status = CASE WHEN status = 'Draft' THEN 'Sent' ELSE status END WHERE id = ?", (qid,))
+        commit()
+    flash(msg, "ok" if ok else "err")
+    return redirect(url_for("quotes.view_one", qid=qid))

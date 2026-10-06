@@ -10,6 +10,7 @@
       <input type="hidden" name="customer_id" id="custid" value="{{ f.get('customer_id') or '' }}">
       <datalist id="custlist">{% for c in customers %}<option value="{{ c.name }}">{% endfor %}</datalist>
       <label>Phone<input name="customer_phone" value="{{ f.get('customer_phone', '') }}"></label>
+      <label>Email<input name="customer_email" value="{{ f.get('customer_email', '') }}"></label>
       <label>Address<textarea name="customer_address" rows="2">{{ f.get('customer_address', '') }}</textarea></label>
     </div>
     <div>

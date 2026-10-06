@@ -276,6 +276,7 @@ SETTING_FIELDS = [
         ("wa_access_token", "Meta permanent access token", "secret"),
         ("wa_api_version", "Graph API version", "text"), ("wa_language", "Template language code", "text"),
         ("wa_invoice_template", "Invoice template name", "text"),
+        ("wa_quotation_template", "Quotation template name", "text"),
         ("wa_receipt_template", "Payment receipt template name", "text"),
         ("wa_payslip_template", "Payslip template name (employee name, month, net salary)", "text"),
         ("wa_statement_template", "Statement template name", "text"),

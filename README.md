@@ -74,6 +74,7 @@ Backups are saved in `/opt/erp/data/backups/`. Also copy them off the server reg
    | Template name | Body text (keep the `{{ }}` numbers in this order) |
    |---|---|
    | `invoice_notification` | Dear {{1}}, please find attached invoice {{2}} for {{3}}, due by {{4}}. Thank you for your business. |
+   | `quotation_notification` | Dear {{1}}, please find attached quotation {{2}} for {{3}}, valid until {{4}}. We look forward to hearing from you. |
    | `payment_receipt` | Dear {{1}}, we have received your payment of {{2}} on {{3}}. Your balance is now {{4}}. Receipt attached. |
    | `statement_notification` | Dear {{1}}, please find attached your account statement. Balance due: {{2}} as of {{3}}. |
    | `balance_reminder` (header: **None**, text only) | Dear {{1}}, your current balance with us is {{2}} as of {{3}}. Please contact us for any query. |
