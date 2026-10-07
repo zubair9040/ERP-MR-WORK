@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Tasks{% endblock %}
+{% block actions %}<a class="btn grey" href="{{ url_for('team.task_new') }}">{{ icon('plus', 16) }} New task</a>{% endblock %}
+{% block content %}
+<div class="card">
+<form class="filters" method="get">
+  {% if can_assign %}<select name="scope" onchange="this.form.submit()"><option value="mine" {{ 'selected' if scope == 'mine' }}>My tasks</option><option value="all" {{ 'selected' if scope == 'all' }}>Everyone's tasks</option></select>{% endif %}
+  <select name="status" onchange="this.form.submit()"><option value="">Open</option>{% for st in ['To do', 'In progress', 'Done'] %}<option {{ 'selected' if st == status }}>{{ st }}</option>{% endfor %}<option value="all" {{ 'selected' if status == 'all' }}>All</option></select>
+</form>
+<div class="tablewrap"><table>
+<tr><th>Task</th><th>For</th><th>Priority</th><th>Due</th><th>Status</th></tr>
+{% for t in rows %}<tr><td><a href="{{ url_for('team.task_view', tid=t.id) }}"><b>{{ t.title }}</b></a></td><td>{{ t.assignee }}</td><td>{{ t.priority }}</td>
+  <td class="{{ 'red' if t.due_date and t.due_date < today and t.status != 'Done' }}">{{ t.due_date|d if t.due_date else '—' }}{% if t.due_date and t.due_date < today and t.status != 'Done' %} (overdue){% endif %}</td><td>{{ t.status }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No tasks here.</td></tr>{% endfor %}
+</table></div></div>
+{% endblock %}

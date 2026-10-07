@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Team chat{% endblock %}
+{% block content %}
+<div style="display:grid;grid-template-columns:220px 1fr;gap:14px;align-items:start" class="chatgrid">
+  <div class="card" style="padding:10px">
+    <a class="btn {{ 'alt' if room == 'general' else 'light' }}" style="display:block;margin-bottom:6px" href="{{ url_for('team.chat') }}">General {% if unread['general'] %}<em class="nav-badge">{{ unread['general'] }}</em>{% endif %}</a>
+    <div class="muted" style="margin:8px 4px 4px">Private messages</div>
+    {% for u in users %}{% set r = dm_room(me, u.id) %}<a class="btn {{ 'alt' if room == r else 'light' }}" style="display:block;margin-bottom:6px;text-align:left" href="{{ url_for('team.chat', room=r) }}">{{ u.name }} {% if unread[r] %}<em class="nav-badge">{{ unread[r] }}</em>{% endif %}</a>{% endfor %}
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">{{ title }}</h3>
+    <div id="msgs" style="height:55vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg)"></div>
+    <form id="sendf" style="display:flex;gap:8px;margin-top:10px">
+      <input id="body" autocomplete="off" placeholder="Type a message…" style="flex:1;font-size:16px" maxlength="2000"><button class="btn alt">Send</button></form>
+  </div>
+</div>
+<style>@media (max-width: 800px) { .chatgrid { grid-template-columns: 1fr !important } }</style>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const ROOM = {{ room|tojson }}, box = document.getElementById('msgs'); let last = 0, busy = false;
+  const esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  async function load() {
+    if (busy) return; busy = true;
+    try {
+      const r = await fetch('{{ url_for("team.chat_messages") }}?room=' + encodeURIComponent(ROOM) + '&after=' + last, {credentials: 'same-origin'}); const j = await r.json();
+      const stick = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+      j.messages.forEach(m => { last = m.id; const mine = m.sender_id === j.me;
+        box.insertAdjacentHTML('beforeend', '<div style="margin-bottom:8px;text-align:' + (mine ? 'right' : 'left') + '"><div style="display:inline-block;max-width:80%;text-align:left;padding:8px 12px;border-radius:12px;background:' + (mine ? 'var(--accent-soft)' : '#fff') + ';border:1px solid var(--line)"><small class="muted">' + esc(m.sender_name || '') + ' · ' + esc((m.created_at || '').slice(5)) + '</small><br>' + esc(m.body) + '</div></div>'); });
+      if (j.messages.length && (stick || last === j.messages[j.messages.length - 1].id)) box.scrollTop = box.scrollHeight;
+      const cb = document.getElementById('chat-badge'); if (cb && j.messages.length) { /* refreshed by the next ping */ }
+    } catch (e) {} busy = false;
+  }
+  document.getElementById('sendf').addEventListener('submit', async e => {
+    e.preventDefault(); const i = document.getElementById('body'), v = i.value.trim(); if (!v) return; i.value = '';
+    const fd = new FormData(); fd.append('room', ROOM); fd.append('body', v); fd.append('_csrf', '{{ csrf_token() }}');
+    await fetch('{{ url_for("team.chat_send") }}', {method: 'POST', body: fd, credentials: 'same-origin'}); load();
+  });
+  load(); setInterval(load, 3000);
+})();
+</script>
+{% endblock %}

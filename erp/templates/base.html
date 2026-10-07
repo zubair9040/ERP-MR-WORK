@@ -67,6 +67,10 @@
       <a href="{{ url_for('hr.home') }}" class="{{ 'on' if ep in ('hr.home', 'hr.sheet', 'hr.report') }}">{{ icon('calendar') }}<span>Salary sheets</span></a>
       <a href="{{ url_for('hr.employees') }}" class="{{ 'on' if ep.startswith('hr.employee') }}">{{ icon('users') }}<span>Employees</span></a>
       <a href="{{ url_for('hr.advances') }}" class="{{ 'on' if ep == 'hr.advances' }}">{{ icon('wallet') }}<span>Advances &amp; loans</span></a>{% endif %}
+      {% set tsum = team_summary() %}<div class="navhead">Team</div>
+      <a href="{{ url_for('team.chat') }}" class="{{ 'on' if ep.startswith('team.chat') }}">{{ icon('chat') }}<span>Team chat</span><em class="nav-badge" id="chat-badge" {% if not tsum.chat %}style="display:none"{% endif %}>{{ tsum.chat }}</em></a>
+      <a href="{{ url_for('team.tasks') }}" class="{{ 'on' if ep.startswith('team.task') }}">{{ icon('check') }}<span>Tasks</span><em class="nav-badge" id="tasks-badge" {% if not tsum.tasks %}style="display:none"{% endif %}>{{ tsum.tasks }}</em></a>
+      {% if can('team.time') %}<a href="{{ url_for('team.time_report') }}" class="{{ 'on' if ep == 'team.time_report' }}">{{ icon('calendar') }}<span>Staff time</span></a>{% endif %}
       {% if can('statements.send') or can('reports.sales') or can('reports.finance') or can('invoices.send') %}
       <div class="navhead">Insights</div>
       {% if can('statements.send') %}<a href="{{ url_for('reports.month_end') }}" class="{{ 'on' if ep == 'reports.month_end' }}">{{ icon('calendar') }}<span>Month-end</span></a>{% endif %}
@@ -178,6 +182,22 @@
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { const f = [...box.querySelectorAll('.opt')].find(o => o.style.display !== 'none'); if (f) location = f.href; } });
   document.addEventListener('click', e => { if (!box.contains(e.target)) open(false); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') open(false); });
+})();
+</script>
+<script>
+(function () {
+  const IDLE_MS = 120000, EVERY = 30000;
+  let lastAct = Date.now();
+  ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(e => window.addEventListener(e, () => { lastAct = Date.now(); }, {passive: true}));
+  function badge(id, n) { const b = document.getElementById(id); if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; } }
+  async function ping() {
+    if (document.visibilityState !== 'visible' || Date.now() - lastAct > IDLE_MS) return;
+    try {
+      const r = await fetch('{{ url_for("team.ping") }}', {method: 'POST', credentials: 'same-origin', headers: {'X-CSRF': '{{ csrf_token() }}'}});
+      const j = await r.json(); badge('chat-badge', j.chat); badge('tasks-badge', j.tasks);
+    } catch (e) {}
+  }
+  setTimeout(ping, 2000); setInterval(ping, EVERY);
 })();
 </script>
 {% if can('orders.approve') %}

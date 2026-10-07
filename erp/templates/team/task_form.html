@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}New task{% endblock %}
+{% block content %}
+<form method="post" class="card" style="max-width:640px">{{ csrf_field() }}
+  <label>Title<input name="title" required autofocus></label>
+  <label>Details<textarea name="details" rows="4"></textarea></label>
+  {% if can_assign %}<label>Assign to<select name="assignee_id">{% for u in users %}<option value="{{ u.id }}" {{ 'selected' if u.id == me }}>{{ u.name }}</option>{% endfor %}</select></label>{% endif %}
+  <div class="grid2"><label>Due date<input type="date" name="due_date"></label>
+    <label>Priority<select name="priority">{% for p in priorities %}<option {{ 'selected' if p == 'Normal' }}>{{ p }}</option>{% endfor %}</select></label></div>
+  <button class="btn alt">Create task</button>
+</form>
+{% endblock %}

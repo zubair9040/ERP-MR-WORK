@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Task{% endblock %}
+{% block content %}
+<div class="grid2">
+  <div class="card"><h2>{{ t.title }}</h2>
+    <dl class="kv"><dt>For</dt><dd>{{ t.assignee }}</dd><dt>Given by</dt><dd>{{ t.created_by_name }}</dd><dt>Priority</dt><dd>{{ t.priority }}</dd>
+      <dt>Due</dt><dd class="{{ 'red' if t.due_date and t.due_date < today and t.status != 'Done' }}">{{ t.due_date|d if t.due_date else '—' }}</dd><dt>Status</dt><dd><b>{{ t.status }}</b></dd></dl>
+    {% if t.details %}<p style="white-space:pre-line">{{ t.details }}</p>{% endif %}</div>
+  <div class="card"><h3>Move this task</h3>
+    <form method="post" action="{{ url_for('team.task_status', tid=t.id) }}" class="rowform">{{ csrf_field() }}
+      <select name="status">{% for st in statuses %}<option {{ 'selected' if st == t.status }}>{{ st }}</option>{% endfor %}</select><button class="btn alt small">Update</button></form></div>
+</div>
+<div class="card"><h3>Comments</h3>
+  {% for c in comments %}<p><b>{{ c.user_name }}</b> <span class="muted">{{ c.created_at }}</span><br>{{ c.body }}</p>{% else %}<p class="muted">No comments yet.</p>{% endfor %}
+  <form method="post" action="{{ url_for('team.task_comment', tid=t.id) }}" class="rowform">{{ csrf_field() }}<input name="body" required placeholder="Write a comment" style="width:320px"><button class="btn light small">Add</button></form></div>
+{% endblock %}

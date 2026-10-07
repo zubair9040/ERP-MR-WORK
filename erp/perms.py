@@ -29,6 +29,7 @@ AREAS = [
                  ("reports.costs", "See costs, stock value & profit")]),
     ("Admin", [("approve.voids", "Approve void / delete requests (others must ask)"), ("admin.users", "Users & roles"), ("admin.settings", "Settings, companies, print designer, sales reps"),
                ("admin.import", "Import data")]),
+    ("Team", [("team.time", "See the staff active-time report"), ("tasks.assign", "Assign tasks to others and see everyone's tasks")]),
     ("Limits", [("scope.own_customers", "Only their own customers (sales rep login)")]),
 ]
 ALL = [k for _, ps in AREAS for k, _ in ps]
@@ -96,6 +97,7 @@ def seed(con):
 
 
 NEW_GRANTS = {  # role name -> permissions added once (Admin gets everything automatically)
+    "team_v1": {"Full Access": ["tasks.assign"]},
     "quotes_orders_v1": {
         "Full Access": ["quotes.view", "quotes.create", "quotes.void", "orders.view", "orders.create", "orders.approve", "orders.price"],
         "Accountant": ["quotes.view", "quotes.create", "quotes.void", "orders.view", "orders.approve", "orders.price"],
@@ -158,7 +160,9 @@ def role_name(user=None):
 
 # Which permission each page needs. (endpoint, method) or endpoint -> permission; a tuple means "any of these".
 OPEN = {"core.login", "core.setup", "core.logout", "core.change_password", "static", "co.switch", "core.settings_image", "co.logo",
-        "core.dashboard", "core.home_for_user"}
+        "core.dashboard", "core.home_for_user",
+        "team.ping", "team.chat", "team.chat_messages", "team.chat_send", "team.tasks", "team.task_new", "team.task_view",
+        "team.task_status", "team.task_comment"}
 RULES = {
     "sales.customers": "customers.view", "sales.customer_view": "customers.view", "sales.customer_api": ("customers.view", "invoices.view",
                                                                                                           "payments.view"),
@@ -183,6 +187,7 @@ RULES = {
     "orders.index": ("orders.view", "orders.create"), "orders.view_one": ("orders.view", "orders.create"),
     "orders.new": ("orders.create", "orders.approve"), "orders.approve": "orders.approve",
     "orders.reject": "orders.approve", "orders.cancel": ("orders.create", "orders.approve"), "orders.count": ("orders.view", "orders.create"),
+    "team.time_report": "team.time",
     "sales.items": "items.view", "sales.items_set_group": "items.edit", "sales.item_form": "items.edit",
     "ops.credit_notes": "returns.view", "ops.credit_view": "returns.view", "ops.credit_pdf": "returns.view",
     "ops.credit_new": "returns.create", "ops.credit_edit": "returns.create", "ops.credit_void": "returns.void",

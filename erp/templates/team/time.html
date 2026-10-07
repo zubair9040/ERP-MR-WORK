@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Staff time{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="filters" method="get">From <input type="date" name="from" value="{{ start }}"> to <input type="date" name="to" value="{{ end }}"><button class="btn">Show</button></form>
+  <p class="muted">Active time counts only while the ERP tab is open and visible with mouse, keyboard or scrolling in the last 2 minutes. Nothing typed is recorded.</p>
+  <h3>Totals</h3>
+  <div class="tablewrap"><table><tr><th>Person</th><th>Days</th><th>Active</th><th>Idle (between first and last activity)</th></tr>
+    {% for n, act, idle, days in totals %}<tr><td><b>{{ n }}</b></td><td>{{ days }}</td><td>{{ act }}</td><td>{{ idle }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">No activity recorded in this period.</td></tr>{% endfor %}</table></div>
+  <h3 style="margin-top:18px">By day</h3>
+  <div class="tablewrap"><table><tr><th>Date</th><th>Person</th><th>First activity</th><th>Last activity</th><th>Active</th><th>Idle</th></tr>
+    {% for r in rows %}<tr><td>{{ r.day|d }}</td><td>{{ r.name }}</td><td>{{ r.first }}</td><td>{{ r.last }}</td><td>{{ r.active }}</td><td>{{ r.idle }}</td></tr>{% endfor %}</table></div>
+</div>
+{% endblock %}

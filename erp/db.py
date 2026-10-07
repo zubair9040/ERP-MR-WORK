@@ -210,6 +210,26 @@ CREATE TABLE IF NOT EXISTS order_lines (
   item_id INTEGER, code TEXT DEFAULT '', description TEXT DEFAULT '', unit TEXT DEFAULT '',
   qty REAL, rate INTEGER DEFAULT 0, amount INTEGER DEFAULT 0, sort INTEGER DEFAULT 0);
 
+CREATE TABLE IF NOT EXISTS activity (
+  id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, day TEXT NOT NULL, first_at TEXT, last_at TEXT, last_ts REAL DEFAULT 0,
+  active_sec INTEGER DEFAULT 0, UNIQUE (user_id, day));
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY, room TEXT NOT NULL, sender_id INTEGER NOT NULL, sender_name TEXT, body TEXT NOT NULL, created_at TEXT);
+CREATE INDEX IF NOT EXISTS ix_chat_room ON chat_messages(room, id);
+
+CREATE TABLE IF NOT EXISTS chat_reads (
+  user_id INTEGER NOT NULL, room TEXT NOT NULL, last_id INTEGER DEFAULT 0, PRIMARY KEY (user_id, room));
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY, title TEXT NOT NULL, details TEXT DEFAULT '', assignee_id INTEGER NOT NULL, created_by INTEGER NOT NULL,
+  created_by_name TEXT, due_date TEXT DEFAULT '', priority TEXT DEFAULT 'Normal', status TEXT DEFAULT 'To do',
+  created_at TEXT, done_at TEXT);
+CREATE INDEX IF NOT EXISTS ix_tasks_assignee ON tasks(assignee_id, status);
+
+CREATE TABLE IF NOT EXISTS task_comments (
+  id INTEGER PRIMARY KEY, task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, user_name TEXT, body TEXT, created_at TEXT);
+
 CREATE INDEX IF NOT EXISTS ix_orders_status ON orders(status, date);
 CREATE INDEX IF NOT EXISTS ix_inv_cust ON invoices(customer_id, date);
 CREATE INDEX IF NOT EXISTS ix_pay_cust ON payments(customer_id, date);
