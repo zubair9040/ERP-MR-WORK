@@ -138,6 +138,7 @@
         {% if can('invoices.create') %}<a class="btn" href="{{ url_for('sales.invoice_new') }}">{{ icon('plus', 16) }} Invoice</a>{% endif %}
         {% if can('payments.create') %}<a class="btn alt" href="{{ url_for('sales.payment_new') }}">{{ icon('cash', 16) }} Payment</a>{% endif %}
         {% endif %}
+        <form method="post" action="{{ url_for('core.logout') }}" style="display:inline" class="logout-form">{{ csrf_field() }}<button class="btn light" title="Sign out of {{ g.user.name }}">{{ icon('logout', 16) }} Log out</button></form>
       </div>
     </header>
     {% if S.wa_dry_run == '1' and not is_store() and not request.endpoint.startswith('wh.') %}<div class="banner">{{ icon('alert', 16) }} <span>WhatsApp is in <b>test mode</b>: PDFs are created but nothing is sent to customers.{% if can('settings') %} <a href="{{ url_for('core.settings_page') }}">Turn it on in Settings</a>.{% endif %}</span></div>{% endif %}

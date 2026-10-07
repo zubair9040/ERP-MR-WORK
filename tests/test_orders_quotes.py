@@ -210,3 +210,12 @@ def test_non_gst_invoice_pdf_hides_delivery_fields_but_dc_shows_them(app):
     flat = lambda d: " ".join(str(v) for v in (d.values() if isinstance(d, dict) else []))
     assert "PO-777" not in flat(inv_f) and "TRK123" not in flat(inv_f)
     assert "PO-777" in flat(dc_f) and "TRK123" in flat(dc_f)
+
+
+def test_logout_button_is_on_every_page_and_signs_out(app):
+    admin = _client(app, "admin", "admin12345")
+    page = admin.get("/orders/").text
+    assert "Log out" in page and "/logout" in page
+    r = admin.post("/logout", data={"_csrf": _tok(admin, "/orders/")})
+    assert r.status_code == 302
+    assert admin.get("/orders/").status_code == 302  # back to the sign-in page
