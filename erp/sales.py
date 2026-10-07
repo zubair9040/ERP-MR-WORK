@@ -6,7 +6,7 @@ from flask import (Blueprint, abort, flash, g, jsonify, redirect, render_templat
 
 from . import notify
 from .auth import can, check_customer_access, is_rep, rep_filter, roles
-from .db import commit, fmt, next_number, nice_date, now, parse_date, plain, q, settings, to_paisa, today, x
+from .db import commit, fmt, next_number, pct_rnd, nice_date, now, parse_date, plain, q, settings, to_paisa, today, x
 from .ledger import apply_payments, balance, customers_with_balance, open_items, statement
 from .export import table_response
 from .companies import co_images, co_settings, companies, customer_company, default_company_id, get_company, next_invoice_number
@@ -581,7 +581,7 @@ def invoice_form(iid=None):
             flash(msg, "err")
             return _render_invoice_form(inv, _form_lines(f), f)
         subtotal = sum(l["amount"] for l in lines if l["kind"] != "subtotal")
-        tax = int(round(subtotal * tax_rate / 100))
+        tax = pct_rnd(subtotal, tax_rate)
         total = subtotal + tax
         vals = dict(date=d, due_date=due, customer_id=cid, rep_id=rep_id, notes=f.get("notes", "").strip(),
                     tax_rate=tax_rate, subtotal=subtotal, discount=0, tax=tax, total=total, t=now(),

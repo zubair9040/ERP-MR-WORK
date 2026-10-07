@@ -91,6 +91,9 @@ def invoice_data(s, inv, lines, customer, rep, open_amt, images, doc="invoice"):
              amount_words=f"{cur} {_words(inv['total'] // 100)} only", customer_message=inv["customer_message"] or "",
              invoice_note=s.get("invoice_note", ""), terms_text=s.get("invoice_terms", ""), footer=s.get("invoice_footer", ""),
              courier=_get(inv, "courier"), tracking_no=_get(inv, "tracking_no"), branch="", deliver_to=_get(inv, "deliver_to").strip())
+    if doc != "dc" and s.get("company_gst") != "1":  # non-GST firm: PO, branch, courier and delivery address belong on the delivery challan only
+        f.update(po_no="", courier="", tracking_no="", deliver_to="")
+        inv = {**dict(inv), "branch_id": None}
     if doc == "dc" and f["deliver_to"]:  # the challan goes with the goods: print the delivery address as the address
         f["customer_address"] = f["deliver_to"]
         f["customer_block"] = f["customer_name"] + "\n" + f["deliver_to"]

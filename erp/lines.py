@@ -5,7 +5,7 @@ Line kinds:
   subtotal  sum of the lines above it, back to the previous sub total (not counted in the total)
   discount  / any line whose price is a percent: that percent of the line directly above
 """
-from .db import to_paisa
+from .db import mul_rnd, pct_rnd, to_paisa
 
 
 def parse_price(text):
@@ -39,12 +39,12 @@ def compute(lines):
             l["amount"] = group
             group = 0
         elif l.get("percent") is not None:
-            l["amount"] = int(round(prev * l["percent"] / 100))
+            l["amount"] = pct_rnd(prev, l["percent"])
             group += l["amount"]
             total += l["amount"]
         else:
             qty = l.get("qty")
-            l["amount"] = int(round((qty if qty is not None else 1) * l["rate"])) if l["rate"] else 0
+            l["amount"] = mul_rnd(qty if qty is not None else 1, l["rate"]) if l["rate"] else 0
             group += l["amount"]
             total += l["amount"]
         prev = l["amount"]

@@ -233,6 +233,18 @@
 })();
 </script>
 {% endif %}
+<script src="{{ url_for('static', filename='combo.js') }}?v=1"></script>
+<script>
+(function () {
+  const holder = document.querySelector('[data-esc-url]'); if (!holder) return;
+  let dirty = false; document.addEventListener('input', () => { dirty = true; });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (dirty && !confirm('Close without saving your changes?')) return;
+    window.__escLeaving = true; location.href = holder.dataset.escUrl;
+  });
+})();
+</script>
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
 {% block scripts %}{% endblock %}
 </body>

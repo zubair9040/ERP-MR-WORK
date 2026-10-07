@@ -8,7 +8,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .db import fmt, nice_date
+from .db import fmt, nice_date, q
 
 _ss = getSampleStyleSheet()
 TITLE = ParagraphStyle("t", parent=_ss["Title"], alignment=2, fontSize=20, spaceAfter=0, textColor=colors.HexColor("#1f4e79"))
@@ -246,7 +246,8 @@ def invoice(path, s, inv, lines, customer, rep, open_amt=None, images=None):
     story += [ct, Spacer(1, 3 * mm)]
 
     # --- bilti / via / ref box
-    ref = " ".join(x for x in [inv["ref_no"], inv["ctn_count"], ("PO " + inv["po_no"]) if inv["po_no"] else ""] if x)
+    show_po = inv["po_no"] and s.get("company_gst") == "1"  # non-GST firms print the PO on the delivery challan only
+    ref = " ".join(x for x in [inv["ref_no"], inv["ctn_count"], ("PO " + inv["po_no"]) if show_po else ""] if x)
     bv = _boxed([["BILTI NO:", "Via", "Ref No. &  No. of CTN"],
                  [Paragraph(f"<para alignment='center'>{escape(inv['bilti_no'] or '')}</para>", B),
                   Paragraph(f"<para alignment='center'>{escape(inv['via'] or '')}</para>", B),
@@ -394,12 +395,17 @@ def delivery_challan(path, s, inv, lines, customer, images=None):
     story = [_brand_header(s, images, "DELIVERY CHALLAN", [("DC #", str(inv["number"])), ("Date", nice_date(inv["date"])),
                                                               ("Invoice #", str(inv["number"]))]), Spacer(1, 6 * mm)]
     to = [Paragraph("<font size=8 color='#667085'>DELIVER TO</font>", N), Paragraph(f"<b>{escape(customer['name'])}</b>", B)]
-    for ln in (customer["address"] or "").splitlines():
+    dl = (inv["deliver_to"] or "").strip() if "deliver_to" in inv.keys() else ""
+    for ln in (dl or customer["address"] or "").splitlines():
         to.append(P(ln))
     if customer["phone"] or customer["whatsapp"]:
         to.append(P("Ph " + (customer["phone"] or customer["whatsapp"])))
-    ship = [["Bilti no.", inv["bilti_no"] or ""], ["Via / transport", inv["via"] or ""], ["Ref no.", inv["ref_no"] or ""],
+    br = q("SELECT name, code FROM customer_branches WHERE id = ?", (inv["branch_id"],), one=True) if inv["branch_id"] else None
+    ship = [["PO no.", inv["po_no"] or ""], ["Ship to (branch)", ((br["code"] + " · ") if br and br["code"] else "") + (br["name"] if br else "")],
+            ["Courier", inv["courier"] or ""], ["Tracking no.", inv["tracking_no"] or ""],
+            ["Bilti no.", inv["bilti_no"] or ""], ["Via / transport", inv["via"] or ""], ["Ref no.", inv["ref_no"] or ""],
             ["No. of cartons", inv["ctn_count"] or ""]]
+    ship = [r for r in ship if r[1] or r[0] in ("Bilti no.", "Via / transport", "Ref no.", "No. of cartons")]
     st_ = Table([[Paragraph(f"<b>{k}</b>", N), P(v)] for k, v in ship], colWidths=[28 * mm, 50 * mm])
     st_.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.6, colors.black), ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.lightgrey),
                              ("FONTSIZE", (0, 0), (-1, -1), 9)]))

@@ -5,7 +5,7 @@ from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template
 
 from .auth import check_customer_access, is_rep, rep_filter
 from .companies import default_company_id, get_company, next_invoice_number
-from .db import commit, now, parse_date, q, settings, to_paisa, today, x
+from .db import commit, mul_rnd, now, pct_rnd, parse_date, q, settings, to_paisa, today, x
 from .perms import has
 
 bp = Blueprint("orders", __name__, url_prefix="/orders")
@@ -37,26 +37,26 @@ def _items():
     return q("SELECT id, code, name, description, unit, price FROM items WHERE active = 1 AND kind = 'item' ORDER BY code, name")
 
 
-def _read_lines(f, items_by_id, can_price):
+def _read_lines(f, items_by_code, can_price):
+    """Lines come from the invoice-style grid: code, qty, price (price only changes if the user may change prices)."""
     lines = []
-    ids, qtys, prices = f.getlist("item_id"), f.getlist("qty"), f.getlist("price")
-    for n, (iid, qty, price) in enumerate(zip(ids, qtys, prices), start=1):
-        if not str(iid).strip() and not str(qty).strip():
+    cols = [f.getlist(k) for k in ("code", "qty", "price", "ctn_qty")]
+    for n in range(max((len(c) for c in cols), default=0)):
+        code, qty, price, ctn = (c[n].strip() if n < len(c) else "" for c in cols)
+        if not code and not qty:
             continue
-        it = items_by_id.get(int(iid)) if str(iid).strip().isdigit() else None
+        it = items_by_code.get(code.upper())
         if not it:
-            raise ValueError(f"Line {n}: choose an item from the list.")
+            raise ValueError(f"Line {len(lines) + 1}: '{code}' is not an item code. Choose an item from the list.")
         try:
-            qn = float(str(qty).replace(",", "").strip() or 0)
+            qn = float(qty.replace(",", "") or 0)
         except ValueError:
-            raise ValueError(f"Line {n}: quantity must be a number.")
+            raise ValueError(f"Line {len(lines) + 1}: quantity must be a number.")
         if qn <= 0:
-            raise ValueError(f"Line {n}: quantity must be more than zero.")
-        rate = it["price"]
-        if can_price and str(price).strip():
-            rate = to_paisa(price)
+            raise ValueError(f"Line {len(lines) + 1}: quantity must be more than zero.")
+        rate = to_paisa(price) if (can_price and price) else it["price"]
         lines.append({"item_id": it["id"], "code": it["code"], "description": it["description"] or it["name"], "unit": it["unit"] or "",
-                      "qty": qn, "rate": rate, "amount": int(round(qn * rate)), "sort": n})
+                      "ctn_qty": ctn, "qty": qn, "rate": rate, "amount": mul_rnd(qn, rate), "sort": len(lines) + 1})
     if not lines:
         raise ValueError("Add at least one item.")
     return lines
@@ -92,8 +92,8 @@ def count():
 
 def _form(order, lines, f=None):
     return render_template("orders/form.html", order=order, lines=lines, f=f or {}, customers=_customers(), items=_items(),
-                           items_json=[{"id": i["id"], "label": f"{i['code']} — {i['name']}", "price": i["price"] / 100} for i in _items()],
-                           existing=[{"item_id": l["item_id"], "qty": l["qty"], "price": l["rate"] / 100} for l in lines],
+                           items_json=[{"id": i["id"], "code": i["code"], "desc": i["description"] or i["name"], "unit": i["unit"] or "", "price": i["price"] / 100} for i in _items()],
+                           existing=[{"code": l["code"], "qty": f"{l['qty']:g}", "ctn_qty": l["ctn_qty"] if "ctn_qty" in l.keys() else "", "price": f"{l['rate'] / 100:.2f}"} for l in lines],
                            can_price=has("orders.price"), cur=settings().get("currency", "Rs"))
 
 
@@ -117,8 +117,7 @@ def new(oid=None):
             if not c:
                 raise ValueError("Choose the customer (shop) from the list.")
             check_customer_access(c)
-            items_by_id = {i["id"]: i for i in _items()}
-            lines = _read_lines(f, items_by_id, has("orders.price"))
+            lines = _read_lines(f, {i["code"].upper(): i for i in _items() if i["code"]}, has("orders.price"))
         except ValueError as e:
             flash(str(e), "err")
             return _form(order, [], f)
@@ -134,8 +133,8 @@ def new(oid=None):
                     (_next_number(), today(), cid, c["rep_id"] or (g.user["rep_id"] if is_rep() else None), f.get("notes", "").strip(),
                      total, lat, lng, g.user["id"], g.user["name"], now()))
         for l in lines:
-            x("""INSERT INTO order_lines (order_id, item_id, code, description, unit, qty, rate, amount, sort)
-                 VALUES (?,?,?,?,?,?,?,?,?)""", (oid, l["item_id"], l["code"], l["description"], l["unit"], l["qty"], l["rate"], l["amount"], l["sort"]))
+            x("""INSERT INTO order_lines (order_id, item_id, code, description, unit, ctn_qty, qty, rate, amount, sort)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)""", (oid, l["item_id"], l["code"], l["description"], l["unit"], l["ctn_qty"], l["qty"], l["rate"], l["amount"], l["sort"]))
         commit()
         n = q("SELECT number FROM orders WHERE id = ?", (oid,), one=True)["number"]
         flash(f"Order {n} sent to the office for approval.", "ok")
@@ -171,19 +170,20 @@ def make_invoice(customer_id, rep_id, note, lines):
     due = (date.fromisoformat(d) + timedelta(days=c["terms_days"] or 0)).isoformat()
     tax_rate = float(co["default_tax_rate"] or 0) if co["gst_registered"] else 0.0
     subtotal = sum(l["amount"] for l in lines)
-    tax = int(round(subtotal * tax_rate / 100))
+    tax = pct_rnd(subtotal, tax_rate)
     iid = x("""INSERT INTO invoices (number, date, due_date, customer_id, rep_id, notes, tax_rate, subtotal, discount, tax, total,
                created_by, created_at, company_id) VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?,?)""",
             (next_invoice_number(co["id"]), d, due, customer_id, rep_id or c["rep_id"], note,
              tax_rate, subtotal, tax, subtotal + tax, g.user["id"], now(), co["id"]))
     for n, l in enumerate(lines, start=1):
+        ctn = l["ctn_qty"] if "ctn_qty" in l.keys() else ""
         x("""INSERT INTO invoice_lines (invoice_id, item_id, code, description, unit, ctn_qty, qty, rate, percent, amount, kind, sort)
-             VALUES (?,?,?,?,?,'',?,?,NULL,?,'item',?)""", (iid, l["item_id"], l["code"], l["description"], l["unit"], l["qty"], l["rate"], l["amount"], n))
+             VALUES (?,?,?,?,?,?,?,?,NULL,?,'item',?)""", (iid, l["item_id"], l["code"], l["description"], l["unit"], ctn or "", l["qty"], l["rate"], l["amount"], n))
     return iid
 
 
 def create_invoice(o, lines):
-    return make_invoice(o["customer_id"], o["rep_id"], f"From order {o['number']} taken by {o['created_by_name']}" + (f"\n{o['notes']}" if o["notes"] else ""), lines)
+    return make_invoice(o["customer_id"], o["rep_id"], f"From order {o['number']} taken by {o['created_by_name']}" + (f"\nRequest: {o['notes']}" if o["notes"] else ""), lines)
 
 
 @bp.route("/<int:oid>/approve", methods=["POST"])

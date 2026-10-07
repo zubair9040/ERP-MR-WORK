@@ -49,13 +49,14 @@
 {% if inv %}<form id="waform" method="post" action="{{ url_for('sales.invoice_send', iid=inv.id) }}">{{ csrf_field() }}
   <input type="hidden" name="phone" id="waphone" value=""><input type="hidden" name="back" value="{{ url_for('sales.invoice_form', iid=inv.id) }}"></form>{% endif %}
 
+<div data-esc-url="{{ url_for('sales.invoices') }}" hidden></div>
 <form method="post" id="invform" autocomplete="off">
 {{ csrf_field() }}
 <div class="qb">
   <div class="qb-main">
     <div class="qb-bar">
       <label>CUSTOMER
-        <select name="customer_id" id="customer" required>
+        <select name="customer_id" id="customer" class="combo" required>
           <option value="">— choose customer —</option>
           {% set multi = companies|length > 1 %}
           {% for c in customers %}{% if not inv_company or c.company_id == inv_company.id %}<option value="{{ c.id }}" data-rep="{{ c.rep_id or '' }}" {{ 'selected' if v('customer_id')|string == c.id|string }}>{{ c.name }}{% if multi and not cur_company() and not inv_company %} · {% for co in companies if co.id == c.company_id %}{{ co.code }}{% endfor %}{% endif %}</option>{% endif %}{% endfor %}
@@ -83,10 +84,11 @@
         <label>VIA<input name="via" value="{{ v('via') }}" list="vias"></label>
         <label>REF NO.<input name="ref_no" value="{{ v('ref_no') }}"></label>
         <label>NO. OF CTN<input name="ctn_count" value="{{ v('ctn_count') }}"></label>
-        <label>PO NO.<input name="po_no" value="{{ v('po_no') }}" placeholder="Customer's PO"></label>
         <label>DUE DATE<input type="date" name="due_date" value="{{ v('due_date') }}" title="Leave blank to use the customer's terms"></label>
       </div>
-      <div class="qb-row2 qb-row3">
+      <div id="dcslot-inline">
+      <div class="qb-row2 qb-row3" id="dcfields">
+        <label>PO NO.<input name="po_no" value="{{ v('po_no') }}" placeholder="Customer's PO"></label>
         <label class="grow2">SHIP TO (BRANCH)<select name="branch_id" id="branch" data-sel="{{ v('branch_id') }}"><option value="">— head office / no branch —</option></select></label>
         <label>COURIER<input name="courier" value="{{ v('courier') }}" list="couriers" placeholder="TCS, LCS…"></label>
         <label>TRACKING NO.<input name="tracking_no" value="{{ v('tracking_no') }}"></label>
@@ -94,6 +96,9 @@
         <label class="dl-box">DELIVER TO <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">(only if different from the bill-to address; leave empty and it won't print)</span>
           <textarea name="deliver_to" id="deliver_to" rows="3" placeholder="e.g. HBL Branch, Mall Road, Lahore">{{ v('deliver_to') }}</textarea></label>
       </div>
+      </div>
+      <details class="dc-details" id="dcdetails" style="display:none;margin:0 0 12px"><summary style="cursor:pointer;font-weight:600;color:var(--accent)">Delivery challan details &mdash; PO no., ship to, courier, tracking, delivery address <span class="muted" style="font-weight:400">(printed on the DC only, not on the invoice)</span></summary>
+        <div id="dcslot-dc"></div></details>
       <datalist id="couriers">{% for c in couriers %}<option value="{{ c.name }}">{% endfor %}</datalist>
       <datalist id="vias">{% for x in vias %}<option value="{{ x }}">{% endfor %}</datalist>
       <datalist id="itemcodes">{% for it in item_data %}<option value="{{ it.code }}">{{ it.name }}{{ ' · in stock ' ~ it.stock if it.stock != '' }}</option>{% endfor %}</datalist>
@@ -105,9 +110,9 @@
         <tbody></tbody>
       </table>
       </div>
-      <div class="imp-row"><label class="btn light small" for="impfile" title="Excel or CSV with columns: Item code, Qty, Price (optional: Description, U/M, CTN qty)">{{ icon('upload', 14) }} Import lines from Excel</label>
+      <div class="imp-row"><button type="button" class="btn light small" id="pastebtn" title="Paste the line you copied with the ⧉ button (or Ctrl+Shift+V)">Paste line</button><label class="btn light small" for="impfile" title="Excel or CSV with columns: Item code, Qty, Price (optional: Description, U/M, CTN qty)">{{ icon('upload', 14) }} Import lines from Excel</label>
         <input type="file" id="impfile" accept=".xlsx,.xls,.csv" style="display:none"> <a href="{{ url_for('sales.invoice_import_template') }}" class="muted" style="font-size:12.5px">Download sample file</a> <span id="impmsg" class="muted" style="font-size:12.5px"></span></div>
-      <p class="muted" style="margin:6px 0 0">Type an item code, press <b>Tab</b> to move across and <b>Enter</b> for the next line. Use <b>SUB TOTAL</b>, then a discount code like <b>5%</b> or type <b>-5%</b> in PRICE EACH.</p>
+      <p class="muted" style="margin:6px 0 0">Type an item code, press <b>Tab</b> to move across and <b>Enter</b> for the next line. <b>Esc</b> closes the invoice, <b>Ctrl+P</b> saves and prints, <b>⧉</b> copies a line (Ctrl+Shift+C / V). Use <b>SUB TOTAL</b>, then a discount code like <b>5%</b> or type <b>-5%</b> in PRICE EACH.</p>
 
       <div class="qb-bottom">
         <div class="qb-notes">
@@ -157,5 +162,6 @@
 <script id="itemdata" type="application/json">{{ item_data|tojson }}</script>
 <script id="griddata" type="application/json">{{ grid|tojson }}</script>
 <script id="invdata" type="application/json">{{ {'paid': ((inv.total - open_amt)/100 if inv else 0), 'id': inv.id if inv else None, 'multi': companies|length > 1}|tojson }}</script>
-<script src="{{ url_for('static', filename='invoice.js') }}?v=5"></script>
+<script src="{{ url_for('static', filename='money.js') }}?v=1"></script>
+<script src="{{ url_for('static', filename='invoice.js') }}?v=6"></script>
 {% endblock %}

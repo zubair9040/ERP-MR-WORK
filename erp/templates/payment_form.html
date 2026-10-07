@@ -11,6 +11,7 @@
   <a class="tb" href="{{ url_for('sales.payment_view', pid=p.id) }}">{{ icon('more', 16) }} <span>Details / Void</span></a>{% endif %}
   <a class="tb" href="{{ url_for('sales.payments') }}">{{ icon('list', 16) }} <span>All payments</span></a>
 </div>
+<div data-esc-url="{{ url_for('sales.payments') }}" hidden></div>
 <form method="post" id="payform" autocomplete="off">
 {{ csrf_field() }}
 <input type="hidden" name="apply_mode" id="apply_mode" value="{{ f.apply_mode or '' }}">
@@ -18,7 +19,7 @@
   <div class="qb-main">
     <div class="qb-bar">
       <label>RECEIVED FROM
-        <select name="customer_id" id="customer" required>
+        <select name="customer_id" id="customer" class="combo" required>
           <option value="">— choose customer —</option>
           {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if f.customer_id|string == c.id|string }}>{{ c.name }}</option>{% endfor %}
         </select></label>

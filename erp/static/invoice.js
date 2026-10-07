@@ -21,7 +21,7 @@
       `<td><input name="description" value="${esc(d.description)}"></td>` +
       `<td><input name="price" class="r" value="${esc(d.price)}" inputmode="decimal"></td>` +
       `<td class="amt"></td>` +
-      `<td><button type="button" class="del" title="Delete line" tabindex="-1">✕</button>` +
+      `<td style="white-space:nowrap"><button type="button" class="del cp" title="Copy this line (then Paste line)" tabindex="-1" style="margin-right:2px">⧉</button><button type="button" class="del rm" title="Delete line" tabindex="-1">✕</button>` +
       `<input type="hidden" name="item_id" value="${esc(d.item_id)}"><input type="hidden" name="kind" value="${esc(d.kind || 'item')}"></td>`;
     const code = tr.querySelector('[name=code]');
     code.addEventListener('change', () => {
@@ -54,10 +54,40 @@
       });
       i.addEventListener('focus', () => i.select && i.select());
     });
-    tr.querySelector('.del').addEventListener('click', () => { tr.remove(); ensureBlank(); recalc(); });
+    tr.querySelector('.rm').addEventListener('click', () => { tr.remove(); ensureBlank(); recalc(); });
+    tr.querySelector('.cp').addEventListener('click', () => copyRow(tr));
     if (before) body.insertBefore(tr, before); else body.appendChild(tr);
     return tr;
   }
+
+  // copy / paste a line
+  let clip = null;
+  const rowData = tr => ({ qty: tr.querySelector('[name=qty]').value, unit: tr.querySelector('[name=unit]').value, ctn_qty: tr.querySelector('[name=ctn_qty]').value,
+    code: tr.querySelector('[name=code]').value, description: tr.querySelector('[name=description]').value, price: tr.querySelector('[name=price]').value,
+    item_id: tr.querySelector('[name=item_id]').value, kind: tr.querySelector('[name=kind]').value });
+  function copyRow(tr) {
+    clip = rowData(tr);
+    const msg = document.getElementById('impmsg'); if (msg) msg.textContent = 'Line copied. Click "Paste line" (or Ctrl+Shift+V) to add it.';
+    try { navigator.clipboard.writeText(Object.values(clip).slice(0, 6).join('\t')); } catch (e) {}
+  }
+  function pasteRow(after) {
+    if (!clip) return;
+    let tr = after;
+    if (!tr) { const rows = [...body.querySelectorAll('tr')]; tr = rows.reverse().find(r => !rowEmpty(r)); }
+    const nr = addRow(clip, tr ? tr.nextElementSibling : null);
+    ensureBlank(); recalc(); dirty = true; nr.querySelector('[name=qty]').focus();
+  }
+  document.getElementById('pastebtn').addEventListener('click', () => pasteRow(null));
+  document.addEventListener('keydown', e => {
+    const tr = e.target.closest ? e.target.closest('#grid tbody tr') : null;
+    if (e.ctrlKey && e.shiftKey && tr && e.key.toLowerCase() === 'c') { e.preventDefault(); copyRow(tr); }
+    else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteRow(tr); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {  // Ctrl+P: save and print the invoice
+      e.preventDefault();
+      const f = document.getElementById('invform'), a = document.createElement('input'); a.type = 'hidden'; a.name = 'action'; a.value = 'save_print'; f.appendChild(a);
+      f.requestSubmit ? f.requestSubmit() : f.submit();
+    }
+  });
 
   function rowEmpty(tr) {
     return ['qty', 'ctn_qty', 'code', 'description', 'price'].every(n => !tr.querySelector(`[name=${n}]`).value.trim());
@@ -71,33 +101,21 @@
   }
 
   function recalc() {
-    let group = 0, prev = 0, total = 0;
-    body.querySelectorAll('tr').forEach(tr => {
-      const kind = tr.querySelector('[name=kind]').value;
-      const priceTxt = tr.querySelector('[name=price]').value.trim();
-      const qtyTxt = tr.querySelector('[name=qty]').value.trim();
-      let amt = 0, show = true;
-      tr.className = '';
-      if (kind === 'subtotal') {
-        amt = group; group = 0; tr.className = 'sub';
-      } else if (priceTxt.endsWith('%')) {
-        amt = Math.round(prev * num(priceTxt.slice(0, -1))) / 100;
-        group += amt; total += amt; tr.className = 'disc';
-      } else if (priceTxt) {
-        amt = Math.round((qtyTxt ? num(qtyTxt) : 1) * num(priceTxt) * 100) / 100;
-        group += amt; total += amt;
-      } else {
-        show = !!qtyTxt || !!tr.querySelector('[name=description]').value.trim();
-      }
-      tr.querySelector('.amt').textContent = (show && !rowEmpty(tr)) ? fmt(amt) : '';
-      prev = amt;
+    const trs = [...body.querySelectorAll('tr')];
+    const res = ErpMoney.compute(trs.map(tr => ({
+      kind: tr.querySelector('[name=kind]').value, qty: tr.querySelector('[name=qty]').value, price: tr.querySelector('[name=price]').value,
+      hasText: !!tr.querySelector('[name=description]').value.trim() })), document.getElementById('taxrate').value);
+    trs.forEach((tr, i) => {
+      const r = res.rows[i];
+      tr.className = r.cls;
+      tr.querySelector('.amt').textContent = (r.show && !rowEmpty(tr)) ? fmt(r.amt / 100) : '';
     });
-    const tax = Math.round(total * num(document.getElementById('taxrate').value)) / 100;
-    document.getElementById('taxrow').style.display = tax ? '' : 'none';
-    document.getElementById('t_tax').textContent = fmt(tax);
-    document.getElementById('t_total').textContent = fmt(total + tax);
-    document.getElementById('t_paid').textContent = fmt(inv.paid || 0);
-    document.getElementById('t_bal').textContent = fmt(total + tax - (inv.paid || 0));
+    const paid = Math.round((inv.paid || 0) * 100);
+    document.getElementById('taxrow').style.display = res.tax ? '' : 'none';
+    document.getElementById('t_tax').textContent = fmt(res.tax / 100);
+    document.getElementById('t_total').textContent = fmt(res.grand / 100);
+    document.getElementById('t_paid').textContent = fmt(paid / 100);
+    document.getElementById('t_bal').textContent = fmt((res.grand - paid) / 100);
   }
 
   grid.forEach(r => addRow(r));
@@ -113,7 +131,7 @@
   let dirty = false, submitting = false;
   document.getElementById('invform').addEventListener('input', () => { dirty = true; });
   document.getElementById('invform').addEventListener('submit', () => { submitting = true; });
-  window.addEventListener('beforeunload', e => { if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('beforeunload', e => { if (dirty && !submitting && !window.__escLeaving) { e.preventDefault(); e.returnValue = ''; } });
 
   // Import lines from Excel / CSV
   const imp = document.getElementById('impfile');
@@ -161,6 +179,12 @@
         `<a href="/customers/${c.id}">Customer account &amp; statement →</a><br><a href="/payments/new?customer_id=${c.id}">Receive payment →</a>`;
       const co = c.company, box = document.getElementById('invco');
       if (co) {
+        // non-GST firm: PO no., ship-to, courier, tracking and delivery address belong on the delivery challan, so tuck them away
+        const dcf = document.getElementById('dcfields'), dcd = document.getElementById('dcdetails');
+        if (dcf && dcd) {
+          if (!co.gst) { document.getElementById('dcslot-dc').appendChild(dcf); dcd.style.display = ''; }
+          else { document.getElementById('dcslot-inline').appendChild(dcf); dcd.style.display = 'none'; }
+        }
         if (box) { box.textContent = co.name + ' · ' + (co.gst ? 'GST' : 'non-GST'); box.style.setProperty('--c', co.color); }
         const tr = document.getElementById('taxrate');
         if (!co.gst) { tr.value = '0'; tr.readOnly = true; tr.title = co.name + ' is not GST registered'; }

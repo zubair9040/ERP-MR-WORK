@@ -6,7 +6,7 @@ from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template
 from . import stock as stockmod
 from .auth import check_customer_access, co_filter, is_rep, rep_filter, roles
 from .companies import companies, default_company_id, get_company
-from .db import commit, fmt, next_number, nice_date, now, parse_date, plain, q, settings, to_paisa, today, x
+from .db import commit, fmt, mul_rnd, next_number, nice_date, now, pct_rnd, parse_date, plain, q, settings, to_paisa, today, x
 from .export import table_response
 from .lines import parse_qty
 
@@ -46,7 +46,7 @@ def read_doc_lines(f, need_qty=True):
         if need_qty and it and it["kind"] == "item" and qv is None:
             raise ValueError(f"Line {n}: enter a quantity for {code}.")
         lines.append({"item_id": it["id"] if it else None, "code": code, "description": desc.strip(), "unit": unit.strip(),
-                      "qty": qv, "rate": rate, "amount": int(round((qv if qv is not None else 1) * rate)), "sort": n})
+                      "qty": qv, "rate": rate, "amount": mul_rnd(qv if qv is not None else 1, rate), "sort": n})
     if not lines:
         raise ValueError("Add at least one line.")
     return lines
@@ -237,7 +237,7 @@ def _doc_form(kind, doc=None):
                                    next_no=next_number(cfg["table"], cfg["seq"]),
                                    grid=form_lines(f), items=item_data(), companies=companies(), purchase_co=_purchase_company())
         subtotal = sum(l["amount"] for l in lines)
-        tax = int(round(subtotal * tax_rate / 100))
+        tax = pct_rnd(subtotal, tax_rate)
         vals = dict(date=d, party=pid, notes=f.get("notes", "").strip(), subtotal=subtotal, tax_rate=tax_rate, tax=tax,
                     total=subtotal + tax, t=now())
         if kind == "purchase":

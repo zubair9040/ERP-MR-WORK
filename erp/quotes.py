@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, send_file, url_for
 
 from .companies import companies, default_company_id, get_company, pdf_settings
-from .db import commit, fmt, now, parse_date, q, settings, to_paisa, today, x
+from .db import commit, fmt, mul_rnd, now, pct_rnd, parse_date, q, settings, to_paisa, today, x
 
 bp = Blueprint("quotes", __name__, url_prefix="/quotations")
 
@@ -35,7 +35,7 @@ def _read_lines(f):
         rate = to_paisa(price) if str(price).strip() else (it["price"] if it else 0)
         lines.append({"item_id": it["id"] if it else None, "code": code.strip(), "unit": unit.strip() or (it["unit"] if it else ""),
                       "description": desc.strip() or (it["description"] or it["name"] if it else ""), "qty": qn, "rate": rate,
-                      "amount": int(round(qn * rate)), "sort": len(lines) + 1})
+                      "amount": mul_rnd(qn, rate), "sort": len(lines) + 1})
     if not lines:
         raise ValueError("Add at least one item line.")
     return lines
@@ -85,7 +85,7 @@ def new(qid=None):
             flash(str(e), "err")
             return _form(quote, [], f)
         subtotal = sum(l["amount"] for l in lines)
-        tax = int(round(subtotal * tax_rate / 100))
+        tax = pct_rnd(subtotal, tax_rate)
         d = parse_date(f.get("date")) or today()
         valid = parse_date(f.get("valid_until")) or (date.fromisoformat(d) + timedelta(days=int(settings().get("quote_valid_days", "15") or 15))).isoformat()
         vals = (d, valid, co["id"], c["id"] if c else None, name if not c else "", f.get("customer_phone", "").strip(),

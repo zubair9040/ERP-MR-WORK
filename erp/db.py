@@ -317,6 +317,7 @@ MIGRATIONS = {
     "payroll_lines": [("loan_ded", "INTEGER DEFAULT 0")],
     "wh_lines": [("ctn", "REAL"), ("ppc", "REAL"), ("loose", "REAL")],
     "credit_notes": [("company_id", "INTEGER")],
+    "order_lines": [("ctn_qty", "TEXT DEFAULT ''")],
     "quotes": [("invoice_id", "INTEGER"), ("customer_email", "TEXT DEFAULT ''")],
     "purchases": [("company_id", "INTEGER")],
     "supplier_payments": [("company_id", "INTEGER")],
@@ -526,6 +527,23 @@ def to_paisa(value):
         return int((Decimal(s) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     except InvalidOperation:
         raise ValueError(f"'{value}' is not a valid amount")
+
+
+def rnd(x):
+    """Round to whole paisa, halves away from zero (0.5 -> 1, -0.5 -> -1), computed in exact decimals.
+    The browser (static/money.js) uses the same rule, so the screen and the saved invoice always agree."""
+    d = x if isinstance(x, Decimal) else Decimal(repr(x))
+    return int(d.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def mul_rnd(qty, paisa):
+    """qty (any number) x amount in paisa, rounded the shop way."""
+    return rnd(Decimal(repr(qty)) * Decimal(int(paisa)))
+
+
+def pct_rnd(paisa, percent):
+    """percent of an amount in paisa, e.g. pct_rnd(12345, -5) = -617 (not banker's rounding)."""
+    return rnd(Decimal(int(paisa)) * Decimal(repr(percent)) / Decimal(100))
 
 
 def fmt(paisa, blank_zero=False):

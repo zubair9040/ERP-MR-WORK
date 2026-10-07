@@ -20,6 +20,11 @@ def _first_customer_of_rep(app):
         return q("SELECT id FROM customers WHERE rep_id = ? AND active = 1 LIMIT 1", (rep,), one=True)["id"]
 
 
+def _codes(app, ids):
+    with app.app_context():
+        return [q("SELECT code FROM items WHERE id = ?", (i,), one=True)["code"] for i in ids]
+
+
 def _two_items(app):
     with app.app_context():
         return [r["id"] for r in q("SELECT id FROM items WHERE kind = 'item' AND active = 1 LIMIT 2")]
@@ -28,9 +33,10 @@ def _two_items(app):
 def test_booker_order_needs_approval_then_becomes_invoice(app):
     cid = _first_customer_of_rep(app)
     a, b = _two_items(app)
+    codes = _codes(app, (a, b))
     booker = _client(app, "rizwan", "rizwan123")
     r = booker.post("/orders/new", data={"_csrf": _tok(booker, "/orders/new"), "customer_id": cid,
-                                         "item_id": [a, b], "qty": ["3", "2"], "price": ["", ""], "notes": "test"})
+                                         "code": codes, "qty": ["3", "2"], "price": ["", ""], "ctn_qty": ["", ""], "notes": "test"})
     assert r.status_code == 302
     with app.app_context():
         o = q("SELECT * FROM orders ORDER BY id DESC", one=True)
@@ -63,7 +69,7 @@ def test_booker_cannot_order_for_another_reps_customer(app):
         n = q("SELECT COUNT(*) AS n FROM orders", one=True)["n"]
     a, _ = _two_items(app)
     booker = _client(app, "rizwan", "rizwan123")
-    booker.post("/orders/new", data={"_csrf": _tok(booker, "/orders/new"), "customer_id": other, "item_id": [a], "qty": ["1"], "price": [""]})
+    booker.post("/orders/new", data={"_csrf": _tok(booker, "/orders/new"), "customer_id": other, "code": _codes(app, (a,)), "qty": ["1"], "price": [""]})
     with app.app_context():
         assert q("SELECT COUNT(*) AS n FROM orders", one=True)["n"] == n
 
@@ -72,7 +78,7 @@ def test_reject_keeps_reason_and_makes_no_invoice(app):
     cid = _first_customer_of_rep(app)
     a, _ = _two_items(app)
     booker = _client(app, "rizwan", "rizwan123")
-    booker.post("/orders/new", data={"_csrf": _tok(booker, "/orders/new"), "customer_id": cid, "item_id": [a], "qty": ["1"], "price": [""]})
+    booker.post("/orders/new", data={"_csrf": _tok(booker, "/orders/new"), "customer_id": cid, "code": _codes(app, (a,)), "qty": ["1"], "price": [""]})
     with app.app_context():
         oid = q("SELECT id FROM orders ORDER BY id DESC", one=True)["id"]
         n_inv = q("SELECT COUNT(*) AS n FROM invoices", one=True)["n"]
@@ -177,3 +183,30 @@ def test_quotation_send_by_whatsapp_and_email_in_test_mode(app):
         assert ("quotation", "whatsapp", "test") in kinds and ("quotation", "email", "test") in kinds
         assert q("SELECT status FROM quotes WHERE id = ?", (qid,), one=True)["status"] == "Sent"
     assert admin.get("/reports/messages").status_code == 200
+
+
+def test_non_gst_invoice_pdf_hides_delivery_fields_but_dc_shows_them(app):
+    import re as _re
+    admin = _client(app, "admin", "admin12345")
+    with app.app_context():
+        c = q("SELECT c.id FROM customers c JOIN companies co ON co.id = c.company_id WHERE co.gst_registered = 0 AND c.active = 1 LIMIT 1", one=True)
+        it = q("SELECT code FROM items WHERE kind = 'item' AND active = 1 LIMIT 1", one=True)["code"]
+    admin.post("/invoices/new", data={"_csrf": _tok(admin, "/invoices/new"), "customer_id": c["id"], "date": "2026-10-01", "po_no": "PO-777",
+                                      "courier": "TCS", "tracking_no": "TRK123", "deliver_to": "Branch Road 5", "code": [it], "qty": ["2"], "price": ["100"],
+                                      "unit": [""], "ctn_qty": [""], "description": [""], "item_id": [""], "kind": ["item"], "tax_rate": "0"})
+    with app.app_context():
+        iid = q("SELECT id FROM invoices ORDER BY id DESC", one=True)["id"]
+    assert admin.get(f"/invoices/{iid}.pdf").status_code == 200
+    assert admin.get(f"/invoices/{iid}/dc.pdf").status_code == 200
+    from erp.docdata import invoice_data
+    from erp.companies import co_settings, co_images
+    with app.app_context():
+        inv = q("SELECT * FROM invoices WHERE id = ?", (iid,), one=True)
+        cust = q("SELECT * FROM customers WHERE id = ?", (inv["customer_id"],), one=True)
+        lines = q("SELECT * FROM invoice_lines WHERE invoice_id = ?", (iid,))
+        s, imgs = co_settings(inv["company_id"]), co_images(inv["company_id"])
+        inv_f = invoice_data(s, inv, lines, cust, None, 0, imgs)
+        dc_f = invoice_data(s, inv, lines, cust, None, None, imgs, "dc")
+    flat = lambda d: " ".join(str(v) for v in (d.values() if isinstance(d, dict) else []))
+    assert "PO-777" not in flat(inv_f) and "TRK123" not in flat(inv_f)
+    assert "PO-777" in flat(dc_f) and "TRK123" in flat(dc_f)

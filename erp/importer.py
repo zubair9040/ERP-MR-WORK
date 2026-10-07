@@ -73,7 +73,7 @@ def money(v):
     if v in ("", None):
         return 0
     if isinstance(v, (int, float)):
-        return int(round(v * 100))
+        return to_paisa(repr(v))
     s = str(v).strip().replace(",", "").replace("PKR", "").replace("Rs", "").strip()
     neg = s.startswith("(") and s.endswith(")")
     s = s.strip("()")
