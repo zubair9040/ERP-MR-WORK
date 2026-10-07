@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Sign in{% endblock %}
 {% block solo %}
-<form method="post" class="card narrow">
+<form method="post" class="card narrow" id="loginf">
   {{ csrf_field() }}
-  <h2>Welcome back</h2>
+  <div class="welcome">WELCOME</div>
+  <h2>Sign in</h2>
   <p class="muted" style="margin:0 0 22px">Sign in to {{ S.company_name }}</p>
   <label>Username<input name="username" required autofocus autocomplete="username"></label>
-  <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
-  <button class="btn wide">Sign in</button>
+  <label>Password<span class="pwwrap"><input type="password" name="password" id="pw" required autocomplete="current-password"><button type="button" class="pweye" id="pweye" aria-label="Show password" title="Show / hide password">{{ icon('eye', 18) }}</button></span></label>
+  <button class="btn wide signin" id="signin">Sign in</button>
   <p class="muted" style="margin:14px 0 0;font-size:12px">Notice: while you use this system, your active time (not what you type) is recorded for work-time reporting.</p>
+  <p class="muted" style="margin:22px 0 0;font-size:12px;text-align:center">ERP System · {{ S.company_name }}</p>
 </form>
+<script>
+document.getElementById('pweye').addEventListener('click', () => { const p = document.getElementById('pw'); p.type = p.type === 'password' ? 'text' : 'password'; });
+document.getElementById('loginf').addEventListener('submit', () => { const b = document.getElementById('signin'); setTimeout(() => { b.disabled = true; b.textContent = 'Signing in…'; }, 0); });
+</script>
 {% endblock %}

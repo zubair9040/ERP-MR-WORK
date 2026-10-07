@@ -549,3 +549,12 @@ tr.subtot td { font-weight: 700; background: var(--head-bg, #f6f7fb) }
 }
 [data-theme="mint"] .brand-text b, [data-theme="sky"] .brand-text b, [data-theme="lavender"] .brand-text b, [data-theme="sand"] .brand-text b, [data-theme="blush"] .brand-text b, [data-theme="slate"] .brand-text b, [data-theme="mint"] .me-text b, [data-theme="sky"] .me-text b, [data-theme="lavender"] .me-text b, [data-theme="sand"] .me-text b, [data-theme="blush"] .me-text b, [data-theme="slate"] .me-text b { color: var(--ink) }
 [data-theme="mint"] .me-btn:hover, [data-theme="sky"] .me-btn:hover, [data-theme="lavender"] .me-btn:hover, [data-theme="sand"] .me-btn:hover, [data-theme="blush"] .me-btn:hover, [data-theme="slate"] .me-btn:hover { color: var(--accent) }
+
+/* ===== login page ===== */
+.hexlogo { display: inline-block; margin-bottom: 14px }
+.art-svg { width: 100%; max-width: 420px; margin-top: 26px; display: block }
+.welcome { font-size: 12px; letter-spacing: .28em; font-weight: 800; color: var(--accent); margin-bottom: 6px }
+.pwwrap { position: relative; display: block } .pwwrap input { width: 100%; padding-right: 44px }
+.pweye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 6px }
+.signin { background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; border: 0 !important }
+.signin:disabled { opacity: .7; cursor: wait }
