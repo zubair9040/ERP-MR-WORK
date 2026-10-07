@@ -42,7 +42,7 @@
     <form method="post" action="{{ url_for('sales.customer_whatsapp', cid=c.id, what='email_statement') }}" class="inl">{{ csrf_field() }}
       <input type="hidden" name="back" value="{{ request.full_path }}"><button class="btn light small" title="Email {{ 'unpaid bills' if c.statement_mode == 'open' else 'statement' }} to {{ c.email }}">{{ icon('send', 14) }} Email</button></form>
     {% endif %}
-    <a href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">Invoice</a> · <a href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Collection</a></td></tr>
+    <a href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">Invoice</a> · <a href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Payment</a></td></tr>
 {% else %}<tr><td colspan="7" class="muted">No customers found.</td></tr>{% endfor %}
 <tr class="total"><td colspan="4">{{ rows|length }} customers</td><td class="hide-sm"></td><td class="n">{{ cur }} {{ total|money }}</td><td></td></tr>
 </table></div></div>

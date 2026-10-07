@@ -457,7 +457,7 @@ def collections():
     rows.sort(key=lambda r: (r["c"]["name"].lower(), r["date"]))
     data = [[r["c"]["name"], r["c"]["whatsapp"] or r["c"]["phone"] or "", r["c"]["rep_code"] or "", nice_date(r["date"]),
              r["num"], nice_date(r["due"]), r["days"], r["open"]] for r in rows]
-    return _table("Collections (overdue bills)", ["Customer", "Phone", "Rep", "Date", "Num", "Due date", "Days overdue",
+    return _table("Payments due (overdue bills)", ["Customer", "Phone", "Rep", "Date", "Num", "Due date", "Days overdue",
                   "Open balance"], data, {7}, ["Total", "", "", "", "", "", "", sum(r["open"] for r in rows)], CUST_F)
 
 

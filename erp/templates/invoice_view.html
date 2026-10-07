@@ -21,7 +21,7 @@
       {% if inv.ref_no or inv.ctn_count %}<dt>Ref no. / CTN</dt><dd>{{ inv.ref_no }} {{ inv.ctn_count }}</dd>{% endif %}
       <dt>Total</dt><dd><b>{{ cur }} {{ inv.total|money }}</b></dd>
     </dl>
-    {% if not inv.void %}<p style="margin-top:12px"><a class="btn alt" href="{{ url_for('sales.payment_new', customer_id=inv.customer_id) }}">Collection</a></p>{% endif %}
+    {% if not inv.void %}<p style="margin-top:12px"><a class="btn alt" href="{{ url_for('sales.payment_new', customer_id=inv.customer_id) }}">Payment</a></p>{% endif %}
   </div>
   <div class="card">
     <h3>Send on WhatsApp</h3>

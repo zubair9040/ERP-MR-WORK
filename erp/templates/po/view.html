@@ -2,7 +2,7 @@
 {% block title %}PO {{ b.po_no }}{% endblock %}
 {% block actions %}
 <a class="btn light" target="_blank" href="{{ url_for('po.pdf', bid=b.id) }}">{{ icon('pdf', 16) }} {{ 'Combined invoice' if b.combined_no else 'Preview combined' }}</a>
-{% if t.open > 0 and can('payments.create') %}<a class="btn alt" href="{{ url_for('po.pay', bid=b.id) }}">{{ icon('cash', 16) }} PO collection</a>{% endif %}
+{% if t.open > 0 and can('payments.create') %}<a class="btn alt" href="{{ url_for('po.pay', bid=b.id) }}">{{ icon('cash', 16) }} PO payment</a>{% endif %}
 {% endblock %}
 {% block content %}
 <div class="card">

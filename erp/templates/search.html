@@ -11,8 +11,8 @@
 {% if not n %}<div class="card"><p class="muted">Nothing found for "{{ s }}".</p></div>{% endif %}
 {% if res.customers %}<div class="card"><h3>{{ icon('users', 16) }} Customers ({{ res.customers|length }})</h3><table>
   {% for c in res.customers %}<tr><td class="muted">{{ c.code }}</td><td><a href="{{ url_for('sales.customer_view', cid=c.id) }}"><b>{{ c.name }}</b></a> {{ co_tag(c.company_id) }}</td><td>{{ c.city }}</td><td>{{ c.whatsapp or c.phone }}</td>
-    <td class="n"><a href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">Invoice</a> · <a href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Collection</a></td></tr>{% endfor %}</table></div>{% endif %}
-{% for key, title in [('tx', 'Invoices, collections & returns'), ('by_amount', 'Same amount')] %}{% if res[key] %}
+    <td class="n"><a href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">Invoice</a> · <a href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Payment</a></td></tr>{% endfor %}</table></div>{% endif %}
+{% for key, title in [('tx', 'Invoices, payments & returns'), ('by_amount', 'Same amount')] %}{% if res[key] %}
 <div class="card"><h3>{{ icon('list', 16) }} {{ title }} ({{ res[key]|length }})</h3><table>
   {% for r in res[key] %}{% set url = url_for('sales.invoice_view', iid=r.id) if r.t == 'invoice' else (url_for('sales.payment_view', pid=r.id) if r.t == 'payment' else url_for('ops.credit_view', did=r.id)) %}
   <tr class="{{ 'voided' if r.void }}"><td>{{ r.date|d }}</td><td><span class="tag {{ 'paid' if r.t == 'payment' else ('over' if r.t == 'credit' else 'open') }}">{{ types[r.t] }}</span></td>

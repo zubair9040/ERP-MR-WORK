@@ -16,7 +16,7 @@
   <button class="tb wa" form="waform" {% if sent %}onclick="return confirm('Already sent on {{ sent }}. Send again?')"{% endif %}>{{ icon('whatsapp', 16) }} <span>WhatsApp</span></button>
   <button class="tb" form="emailform" title="Email the invoice PDF to the customer's email address">{{ icon('send', 16) }} <span>Email</span></button>
   <span class="sep"></span>
-  <a class="tb" href="{{ url_for('sales.payment_new', customer_id=inv.customer_id) }}">{{ icon('cash', 16) }} <span>Collection</span></a>
+  <a class="tb" href="{{ url_for('sales.payment_new', customer_id=inv.customer_id) }}">{{ icon('cash', 16) }} <span>Payment</span></a>
   <button class="tb {{ 'ok' if inv.delivered_on else 'warn' }}" form="delform" title="{{ 'Delivered ' ~ (inv.delivered_on|d) ~ ' by ' ~ inv.delivered_by ~ '. Click to mark NOT delivered.' if inv.delivered_on else 'Click when the goods have been delivered' }}"
     {% if inv.delivered_on %}onclick="return confirm('Mark this invoice as NOT delivered?')"{% endif %}>
     {{ icon('check' if inv.delivered_on else 'clock', 16) }} <span>{{ 'Delivered ' ~ (inv.delivered_on|d)[:6] if inv.delivered_on else 'Not delivered' }}</span></button>
@@ -36,7 +36,7 @@
   <button class="tb wa" form="invform" name="action" value="save_wa">{{ icon('whatsapp', 16) }} <span>Save &amp; WhatsApp</span></button>
   <button class="tb" form="invform" name="action" value="save_email">{{ icon('send', 16) }} <span>Save &amp; Email</span></button>
   <span class="sep"></span>
-  <button class="tb" form="invform" name="action" value="save_pay">{{ icon('cash', 16) }} <span>Save &amp; collection</span></button>
+  <button class="tb" form="invform" name="action" value="save_pay">{{ icon('cash', 16) }} <span>Save &amp; payment</span></button>
   {% endif %}
   {% if batch %}<span class="sep"></span>
   <button class="tb" form="invform" name="action" value="save_po" title="Save and go back to PO {{ batch.po_no }}">{{ icon('layers', 16) }} <span>Save &amp; back to PO</span></button>{% endif %}

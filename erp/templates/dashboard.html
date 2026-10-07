@@ -63,7 +63,7 @@
   <div class="stat s-bad">
     <div class="k"><span class="chip">{{ icon('alert', 16) }}</span> Overdue</div>
     <div class="v"><small>{{ cur }}</small>{{ overdue|money }}</div>
-    <div class="muted"><a href="{{ url_for('reports.collections') }}">Collections</a></div>
+    <div class="muted"><a href="{{ url_for('reports.collections') }}">Payments</a></div>
   </div>
   {% endif %}
 </div>
@@ -77,7 +77,7 @@
 <div class="sec-h">Quick actions</div>
 <div class="qa">
   {% if can('invoices.create') %}<a href="{{ url_for('sales.invoice_new') }}"><span class="ic c1">{{ icon('invoice', 18) }}</span>Sale invoice</a>{% endif %}
-  {% if can('payments.create') %}<a href="{{ url_for('sales.payment_new') }}"><span class="ic c2">{{ icon('cash', 18) }}</span>Collection</a>{% endif %}
+  {% if can('payments.create') %}<a href="{{ url_for('sales.payment_new') }}"><span class="ic c2">{{ icon('cash', 18) }}</span>Payment</a>{% endif %}
   {% if can('warehouse.work') %}<a href="{{ url_for('wh.doc_new', dtype='DC') }}"><span class="ic c3">{{ icon('truck', 18) }}</span>Goods issue (GIN)</a>
   <a href="{{ url_for('wh.doc_new', dtype='GRN') }}"><span class="ic c7">{{ icon('download', 18) }}</span>Goods receipt</a>{% endif %}
   {% if can('purchases.create') %}<a href="{{ url_for('ops.purchase_new') }}"><span class="ic c5">{{ icon('invoice', 18) }}</span>Purchase bill</a>{% endif %}
@@ -92,10 +92,10 @@
 
 <div class="dash">
   <div class="card">
-    <h3 style="justify-content:space-between">Sales vs collections · last 6 months <span class="chart-legend"><span><i style="background:var(--accent)"></i>Sales</span><span><i style="background:var(--ok)"></i>Collected</span></span></h3>
+    <h3 style="justify-content:space-between">Sales vs payments · last 6 months <span class="chart-legend"><span><i style="background:var(--accent)"></i>Sales</span><span><i style="background:var(--ok)"></i>Collected</span></span></h3>
     {% set W, H, pad = 640, 220, 26 %}
     {% set slot = (W - pad) / series|length %}
-    <svg class="bars" viewBox="0 0 {{ W }} {{ H + 24 }}" width="100%" role="img" aria-label="Sales and collections for the last six months">
+    <svg class="bars" viewBox="0 0 {{ W }} {{ H + 24 }}" width="100%" role="img" aria-label="Sales and payments for the last six months">
       {% for k in range(5) %}{% set y = H - (H - 10) * k / 4 %}
         <line x1="{{ pad }}" x2="{{ W }}" y1="{{ y }}" y2="{{ y }}" stroke="var(--line)" stroke-dasharray="{{ '0' if k == 0 else '3 4' }}"/>
       {% endfor %}

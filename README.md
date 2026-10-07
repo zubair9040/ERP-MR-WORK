@@ -324,7 +324,7 @@ Couriers and their tracking links are listed in **Settings → Invoices → Cour
   - a **✕ Clear filter** button whenever a filter is on
 - The balance report has the same sort and clear filter.
 
-**Collections and approvals**
+**Payments and approvals**
 - "Receive payment" is now called **Collection** everywhere.
 - **All transactions** shows invoices, collections and returns in one list.
   - Search by customer, code, number, PO or cheque.

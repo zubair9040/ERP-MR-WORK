@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit payment ' ~ p.number if p else 'Collection (payment received)' }}{% endblock %}
+{% block title %}{{ 'Edit payment ' ~ p.number if p else 'Payment (received)' }}{% endblock %}
 {% block content %}
 <div class="qb-toolbar">
   <a class="tb" href="{{ url_for('sales.payment_go', direction='prev', **({'from': p.id} if p else {})) }}" {{ 'aria-disabled=true' if not last_id }}>{{ icon('left', 16) }} <span>Prev</span></a>

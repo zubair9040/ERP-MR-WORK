@@ -42,7 +42,7 @@
       {% if can('orders.view') or can('orders.create') %}{% set oc = orders_pending() if can('orders.approve') else 0 %}<a href="{{ url_for('orders.index') }}" class="{{ 'on' if ep.startswith('orders.') }}">{{ icon('list') }}<span>Orders</span><em class="nav-badge" id="orders-badge" {% if not oc %}style="display:none"{% endif %}>{{ oc }}</em></a>{% endif %}
       {% if can('quotes.view') %}<a href="{{ url_for('quotes.index') }}" class="{{ 'on' if ep.startswith('quotes.') }}">{{ icon('tag') }}<span>Quotations</span></a>{% endif %}
       {% if can('invoices.view') %}<a href="{{ url_for('po.index') }}" class="{{ 'on' if ep.startswith('po.') }}">{{ icon('layers') }}<span>PO batch billing</span></a>{% endif %}
-      {% if can('payments.view') %}<a href="{{ url_for('sales.payments') }}" class="{{ 'on' if ep.startswith('sales.payment') }}">{{ icon('wallet') }}<span>Collections</span></a>{% endif %}
+      {% if can('payments.view') %}<a href="{{ url_for('sales.payments') }}" class="{{ 'on' if ep.startswith('sales.payment') }}">{{ icon('wallet') }}<span>Payments</span></a>{% endif %}
       {% if can('invoices.view') or can('payments.view') %}<a href="{{ url_for('sales.transactions') }}" class="{{ 'on' if ep == 'sales.transactions' }}">{{ icon('list') }}<span>All transactions</span></a>{% endif %}
       {% if can('approve.voids') %}{% set pc = pending_count() %}<a href="{{ url_for('ap.index') }}" class="{{ 'on' if ep.startswith('ap.') }}">{{ icon('shield') }}<span>Void approvals</span>{% if pc %}<em class="nav-badge">{{ pc }}</em>{% endif %}</a>
       {% elif can('invoices.void') or can('payments.void') %}<a href="{{ url_for('ap.index') }}" class="{{ 'on' if ep.startswith('ap.') }}">{{ icon('shield') }}<span>My void requests</span></a>{% endif %}
@@ -136,7 +136,7 @@
         {% elif request.endpoint.startswith('hr.') or is_store() or request.endpoint.startswith('wh.') %}
         {% else %}
         {% if can('invoices.create') %}<a class="btn" href="{{ url_for('sales.invoice_new') }}">{{ icon('plus', 16) }} Invoice</a>{% endif %}
-        {% if can('payments.create') %}<a class="btn alt" href="{{ url_for('sales.payment_new') }}">{{ icon('cash', 16) }} Collection</a>{% endif %}
+        {% if can('payments.create') %}<a class="btn alt" href="{{ url_for('sales.payment_new') }}">{{ icon('cash', 16) }} Payment</a>{% endif %}
         {% endif %}
       </div>
     </header>

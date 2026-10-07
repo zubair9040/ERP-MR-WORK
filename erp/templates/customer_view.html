@@ -17,7 +17,7 @@
       {% if c.notes %}<dt>Notes</dt><dd style="white-space:pre-line">{{ c.notes }}</dd>{% endif %}
     </dl>
     <p style="margin-top:14px"><a class="btn" href="{{ url_for('sales.invoice_new', customer_id=c.id) }}">New invoice</a>
-      <a class="btn alt" href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Collection</a></p>
+      <a class="btn alt" href="{{ url_for('sales.payment_new', customer_id=c.id) }}">Payment</a></p>
   </div>
   <div class="card">
     <h3>Statement &amp; balance</h3>
