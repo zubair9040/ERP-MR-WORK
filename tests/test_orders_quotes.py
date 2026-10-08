@@ -230,7 +230,7 @@ def test_invoice_and_receipt_send_buttons_accept_pdf_or_picture(app):
         pid = q("SELECT p.id FROM payments p JOIN customers c ON c.id = p.customer_id WHERE p.void = 0 AND c.whatsapp != '' LIMIT 1", one=True)["id"]
     admin = _client(app, "admin", "admin12345")
     for how in ("pdf", "image"):
-        r = admin.post(f"/invoices/{iid}/send", data={"_csrf": _tok(admin, f"/invoices/{iid}"), "phone": "0300-1234560", "fmt": how}, follow_redirects=True)
+        r = admin.post(f"/invoices/{iid}/send", data={"_csrf": _tok(admin, "/team/tasks"), "phone": "0300-1234560", "fmt": how}, follow_redirects=True)
         assert r.status_code == 200 and "test mode" in r.text, how
-        r = admin.post(f"/payments/{pid}/send", data={"_csrf": _tok(admin, f"/payments/{pid}"), "phone": "0300-1234560", "fmt": how}, follow_redirects=True)
+        r = admin.post(f"/payments/{pid}/send", data={"_csrf": _tok(admin, "/team/tasks"), "phone": "0300-1234560", "fmt": how}, follow_redirects=True)
         assert r.status_code == 200 and "test mode" in r.text, how
