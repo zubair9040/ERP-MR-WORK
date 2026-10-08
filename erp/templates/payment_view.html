@@ -24,7 +24,8 @@
     <form method="post" action="{{ url_for('sales.payment_send', pid=p.id) }}" class="sendbox">
       {{ csrf_field() }}
       <label>Number<input name="phone" value="{{ wa }}" placeholder="923001234567" required></label>
-      <button class="btn wa">Send receipt</button>
+      <button class="btn wa" name="fmt" value="pdf" title="Send the receipt as a PDF document">{{ icon('pdf', 16) }} Send PDF</button>
+      <button class="btn wa" name="fmt" value="image" title="Send the receipt as a picture (saves in the phone gallery)">{{ icon('whatsapp', 16) }} Send picture</button>
     </form>
     <form method="post" action="{{ url_for('sales.payment_email', pid=p.id) }}" class="sendbox" style="margin-top:8px">
       {{ csrf_field() }}

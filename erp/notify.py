@@ -184,7 +184,7 @@ def pdf_to_jpeg(pdf_path, dpi=150, quality=85):
         return None
 
 
-def _send_document(to, template, pdf_path, body_params):
+def _send_document(to, template, pdf_path, body_params, fmt=None):
     s = settings()
     if s.get("wa_dry_run") == "1":
         return None
@@ -193,7 +193,7 @@ def _send_document(to, template, pdf_path, body_params):
         raise WhatsAppError("WhatsApp isn't set up yet. Add the phone number ID and access token in Settings.")
     base = f"https://graph.facebook.com/{s.get('wa_api_version') or 'v21.0'}/{pnid}"
     headers = {"Authorization": f"Bearer {token}"}
-    as_image = bool(pdf_path) and s.get("wa_send_as") == "image"
+    as_image = bool(pdf_path) and (fmt or s.get("wa_send_as")) == "image"  # fmt = what the person chose on the spot; blank = the Settings default
     if as_image:
         jpg = pdf_to_jpeg(pdf_path)
         if jpg:
@@ -233,14 +233,14 @@ def _send_document(to, template, pdf_path, body_params):
         raise WhatsAppError(f"Couldn't reach WhatsApp (internet problem?): {e}")
 
 
-def _deliver(kind, customer, ref_id, phone, template, pdf_path, params, label, period=""):
+def _deliver(kind, customer, ref_id, phone, template, pdf_path, params, label, period="", fmt=None):
     to = normalize(phone or customer["whatsapp"])
     if not to:
         msg = f"{customer['name']} has no valid WhatsApp number."
         _log(kind, customer["id"], ref_id, phone, "failed", msg, period)
         return False, msg
     try:
-        mid = _send_document(to, template, pdf_path, params)
+        mid = _send_document(to, template, pdf_path, params, fmt)
     except WhatsAppError as e:
         _log(kind, customer["id"], ref_id, to, "failed", str(e), period)
         return False, f"{label} not sent to {customer['name']}: {e}"
@@ -251,22 +251,22 @@ def _deliver(kind, customer, ref_id, phone, template, pdf_path, params, label, p
     return True, f"{label} sent to {customer['name']} on WhatsApp (+{to})."
 
 
-def send_invoice(iid, phone=None):
+def send_invoice(iid, phone=None, how=None):
     inv = q("SELECT * FROM invoices WHERE id = ?", (iid,), one=True)
     c = q("SELECT * FROM customers WHERE id = ?", (inv["customer_id"],), one=True)
     cur = settings().get("currency", "Rs")
     params = [c["name"], inv["number"], f"{cur} {fmt(inv['total'])}", nice_date(inv["due_date"] or inv["date"])]
     return _deliver("invoice", c, iid, phone, settings().get("wa_invoice_template"), invoice_pdf(iid), params,
-                    f"Invoice {inv['number']}")
+                    f"Invoice {inv['number']}", fmt=how)
 
 
-def send_receipt(pid, phone=None):
+def send_receipt(pid, phone=None, how=None):
     p = q("SELECT * FROM payments WHERE id = ?", (pid,), one=True)
     c = q("SELECT * FROM customers WHERE id = ?", (p["customer_id"],), one=True)
     cur = settings().get("currency", "Rs")
     params = [c["name"], f"{cur} {fmt(p['amount'])}", nice_date(p["date"]), f"{cur} {fmt(balance(c['id']))}"]
     return _deliver("receipt", c, pid, phone, settings().get("wa_receipt_template"), receipt_pdf(pid), params,
-                    f"Receipt {p['number']}")
+                    f"Receipt {p['number']}", fmt=how)
 
 
 def send_statement(cid, start, end, phone=None, mode="period", opts=None):
@@ -274,7 +274,7 @@ def send_statement(cid, start, end, phone=None, mode="period", opts=None):
     cur = settings().get("currency", "Rs")
     params = [c["name"], f"{cur} {fmt(st['closing'])}", nice_date(end)]
     return _deliver("statement", c, cid, phone, settings().get("wa_statement_template"), path, params,
-                    "Statement", period=f"{start}..{end}")
+                    "Statement", period=f"{start}..{end}", fmt="pdf")  # statements are long: always a PDF
 
 
 def default_period(customer):
@@ -456,11 +456,11 @@ def _quote_party(qid):
     return qt, party
 
 
-def send_quote(qid, phone=None):
+def send_quote(qid, phone=None, how=None):
     qt, c = _quote_party(qid)
     cur = settings().get("currency", "Rs")
     params = [c["name"], qt["number"], f"{cur} {fmt(qt['total'])}", nice_date(qt["valid_until"] or qt["date"])]
-    return _deliver("quotation", c, qid, phone, settings().get("wa_quotation_template"), quote_pdf(qid), params, f"Quotation {qt['number']}")
+    return _deliver("quotation", c, qid, phone, settings().get("wa_quotation_template"), quote_pdf(qid), params, f"Quotation {qt['number']}", fmt=how)
 
 
 def email_quote(qid, to=None):

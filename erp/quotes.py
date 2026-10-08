@@ -178,7 +178,8 @@ def to_invoice(qid):
 def send_whatsapp(qid):
     from . import notify
     _get(qid)
-    ok, msg = notify.send_quote(qid, request.form.get("phone", "").strip() or None)
+    fmt = request.form.get("fmt")
+    ok, msg = notify.send_quote(qid, request.form.get("phone", "").strip() or None, fmt if fmt in ("pdf", "image") else None)
     if ok:
         x("UPDATE quotes SET status = CASE WHEN status = 'Draft' THEN 'Sent' ELSE status END WHERE id = ?", (qid,))
         commit()

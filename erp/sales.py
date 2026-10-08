@@ -17,6 +17,12 @@ bp = Blueprint("sales", __name__)
 METHODS = ["Cash", "Cheque", "Bank transfer", "Online", "Other"]
 
 
+def _fmt():
+    """PDF or picture chosen on the spot (blank = the Settings default)."""
+    v = request.form.get("fmt")
+    return v if v in ("pdf", "image") else None
+
+
 def staff_only():
     if is_rep():
         abort(403)
@@ -623,8 +629,8 @@ def invoice_form(iid=None):
             for ok, msg in notify.send_by(c, lambda: notify.send_invoice(iid), lambda: notify.email_invoice(iid)):
                 flash(msg, "ok" if ok else "err")
         action = f.get("action", "save")
-        if action == "save_wa":
-            ok, msg = notify.send_invoice(iid)
+        if action in ("save_wa", "save_wa_img"):
+            ok, msg = notify.send_invoice(iid, how="image" if action == "save_wa_img" else None)
             flash(msg, "ok" if ok else "err")
         if action == "save_email":
             ok, msg = notify.email_invoice(iid)
@@ -843,7 +849,7 @@ def invoice_send(iid):
     inv = get_invoice(iid)
     if inv["void"]:
         abort(400, "A void invoice can't be sent.")
-    ok, msg = notify.send_invoice(iid, request.form.get("phone"))
+    ok, msg = notify.send_invoice(iid, request.form.get("phone"), _fmt())
     flash(msg, "ok" if ok else "err")
     return redirect(request.form.get("back") or url_for("sales.invoice_view", iid=iid))
 
@@ -1155,7 +1161,7 @@ def payment_send(pid):
     p = get_payment(pid)
     if p["void"]:
         abort(400, "A void payment can't be sent.")
-    ok, msg = notify.send_receipt(pid, request.form.get("phone"))
+    ok, msg = notify.send_receipt(pid, request.form.get("phone"), _fmt())
     flash(msg, "ok" if ok else "err")
     return redirect(url_for("sales.payment_view", pid=pid))
 

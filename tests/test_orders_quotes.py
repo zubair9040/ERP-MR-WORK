@@ -219,3 +219,18 @@ def test_logout_button_is_on_every_page_and_signs_out(app):
     r = admin.post("/logout", data={"_csrf": _tok(admin, "/orders/")})
     assert r.status_code == 302
     assert admin.get("/orders/").status_code == 302  # back to the sign-in page
+
+
+def test_invoice_and_receipt_send_buttons_accept_pdf_or_picture(app):
+    from erp.db import commit, set_setting
+    with app.app_context():
+        set_setting("wa_dry_run", "1")
+        commit()
+        iid = q("SELECT i.id FROM invoices i JOIN customers c ON c.id = i.customer_id WHERE i.void = 0 AND c.whatsapp != '' LIMIT 1", one=True)["id"]
+        pid = q("SELECT p.id FROM payments p JOIN customers c ON c.id = p.customer_id WHERE p.void = 0 AND c.whatsapp != '' LIMIT 1", one=True)["id"]
+    admin = _client(app, "admin", "admin12345")
+    for how in ("pdf", "image"):
+        r = admin.post(f"/invoices/{iid}/send", data={"_csrf": _tok(admin, f"/invoices/{iid}"), "phone": "0300-1234560", "fmt": how}, follow_redirects=True)
+        assert r.status_code == 200 and "test mode" in r.text, how
+        r = admin.post(f"/payments/{pid}/send", data={"_csrf": _tok(admin, f"/payments/{pid}"), "phone": "0300-1234560", "fmt": how}, follow_redirects=True)
+        assert r.status_code == 200 and "test mode" in r.text, how

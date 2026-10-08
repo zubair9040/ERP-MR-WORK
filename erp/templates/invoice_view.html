@@ -30,7 +30,8 @@
       {% if msgs and msgs[0].status in ('sent', 'test') %}onsubmit="return confirm('This invoice was already sent. Send again?')"{% endif %}>
       {{ csrf_field() }}
       <label>Number<input name="phone" value="{{ wa }}" placeholder="923001234567" required></label>
-      <button class="btn wa">Send invoice</button>
+      <button class="btn wa" name="fmt" value="pdf" title="Send the invoice as a PDF document">{{ icon('pdf', 16) }} Send PDF</button>
+      <button class="btn wa" name="fmt" value="image" title="Send the invoice as a picture (saves in the phone gallery)">{{ icon('whatsapp', 16) }} Send picture</button>
     </form>
     <form method="post" action="{{ url_for('sales.invoice_email', iid=inv.id) }}" class="sendbox" style="margin-top:8px">
       {{ csrf_field() }}

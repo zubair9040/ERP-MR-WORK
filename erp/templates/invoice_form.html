@@ -13,7 +13,8 @@
   {% if inv %}
   <a class="tb" target="_blank" href="{{ url_for('sales.invoice_pdf', iid=inv.id) }}">{{ icon('print', 16) }} <span>Print / PDF</span></a>
   <a class="tb" target="_blank" href="{{ url_for('sales.invoice_dc_pdf', iid=inv.id) }}" title="Delivery challan on a separate A4 page (no prices)">{{ icon('truck', 16) }} <span>Print DC</span></a>
-  <button class="tb wa" form="waform" {% if sent %}onclick="return confirm('Already sent on {{ sent }}. Send again?')"{% endif %}>{{ icon('whatsapp', 16) }} <span>WhatsApp</span></button>
+  <button class="tb wa" form="waform" name="fmt" value="pdf" title="Send the invoice as a PDF" {% if sent %}onclick="return confirm('Already sent on {{ sent }}. Send again?')"{% endif %}>{{ icon('whatsapp', 16) }} <span>WhatsApp PDF</span></button>
+  <button class="tb wa" form="waform" name="fmt" value="image" title="Send the invoice as a picture (saves in the phone gallery)" {% if sent %}onclick="return confirm('Already sent on {{ sent }}. Send again?')"{% endif %}>{{ icon('whatsapp', 16) }} <span>WhatsApp picture</span></button>
   <button class="tb" form="emailform" title="Email the invoice PDF to the customer's email address">{{ icon('send', 16) }} <span>Email</span></button>
   <span class="sep"></span>
   <a class="tb" href="{{ url_for('sales.payment_new', customer_id=inv.customer_id) }}">{{ icon('cash', 16) }} <span>Payment</span></a>
@@ -33,7 +34,8 @@
   {% else %}
   <button class="tb" form="invform" name="action" value="save_print">{{ icon('print', 16) }} <span>Save &amp; Print</span></button>
   <button class="tb" form="invform" name="action" value="save_dc">{{ icon('truck', 16) }} <span>Save &amp; Print DC</span></button>
-  <button class="tb wa" form="invform" name="action" value="save_wa">{{ icon('whatsapp', 16) }} <span>Save &amp; WhatsApp</span></button>
+  <button class="tb wa" form="invform" name="action" value="save_wa">{{ icon('whatsapp', 16) }} <span>Save &amp; WhatsApp PDF</span></button>
+  <button class="tb wa" form="invform" name="action" value="save_wa_img" title="Save and send the invoice as a picture">{{ icon('whatsapp', 16) }} <span>Save &amp; WhatsApp picture</span></button>
   <button class="tb" form="invform" name="action" value="save_email">{{ icon('send', 16) }} <span>Save &amp; Email</span></button>
   <span class="sep"></span>
   <button class="tb" form="invform" name="action" value="save_pay">{{ icon('cash', 16) }} <span>Save &amp; payment</span></button>

@@ -62,3 +62,28 @@ def test_image_mode_sends_picture_with_image_template_and_pdf_mode_unchanged(app
         assert sent[1]["json"]["template"]["components"][0]["parameters"][0]["type"] == "document"
         set_setting("wa_dry_run", "1")
         commit()
+
+
+def test_choice_on_the_spot_beats_the_setting_and_statements_stay_pdf(app, tmp_path, monkeypatch):
+    sent = []
+
+    def fake_post(url, headers=None, json=None, data=None, files=None, timeout=None):
+        sent.append({"url": url, "json": json, "data": data})
+        return _Resp({"id": "M1"} if url.endswith("/media") else {"messages": [{"id": "wamid.9"}]})
+
+    monkeypatch.setattr(notify.requests, "post", fake_post)
+    pdf = _fake_pdf(tmp_path)
+    with app.app_context():
+        _live(app, "pdf")
+    with app.app_context():  # setting says PDF, but the person pressed "Send picture"
+        notify._send_document("923001112233", "invoice_notification", pdf, ["a"], "image")
+        assert sent[0]["data"]["type"] == "image/jpeg" and sent[1]["json"]["template"]["name"].endswith("_img")
+    sent.clear()
+    with app.app_context():
+        _live(app, "image")
+    with app.app_context():  # setting says picture, but the person pressed "Send PDF"
+        notify._send_document("923001112233", "invoice_notification", pdf, ["a"], "pdf")
+        assert sent[0]["data"]["type"] == "application/pdf"
+    with app.app_context():
+        set_setting("wa_dry_run", "1")
+        commit()
