@@ -264,6 +264,8 @@ DEFAULT_SETTINGS = {
     "wa_language": "en",
     "wa_invoice_template": "invoice_notification",
     "wa_quotation_template": "quotation_notification",
+    "wa_send_as": "pdf",
+    "wa_image_suffix": "_img",
     "wa_receipt_template": "payment_receipt",
     "wa_statement_template": "statement_notification",
     "wa_balance_template": "balance_reminder",

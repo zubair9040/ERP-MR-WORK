@@ -12,7 +12,9 @@
     <h3>{{ group }}</h3>
     <div class="form2">
     {% for key, label, kind in fields %}
-      {% if kind == 'check' %}
+      {% if kind.startswith('select:') %}
+        <label class="wide">{{ label }}<select name="{{ key }}">{% for opt in kind[7:].split('|') %}{% set kv = opt.split('=') %}<option value="{{ kv[0] }}" {{ 'selected' if (s[key] or 'pdf') == kv[0] }}>{{ kv[1] }}</option>{% endfor %}</select></label>
+      {% elif kind == 'check' %}
         <label class="check wide"><input type="checkbox" name="{{ key }}" {{ 'checked' if s[key] == '1' }}> {{ label }}</label>
       {% elif kind == 'image' %}
         <div class="wide" style="margin-bottom:12px"><div style="font-size:13px;color:#34495e">{{ label }}</div>

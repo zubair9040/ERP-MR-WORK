@@ -169,6 +169,21 @@ class WhatsAppError(Exception):
     pass
 
 
+def pdf_to_jpeg(pdf_path, dpi=150, quality=85):
+    """First page of a one-page PDF as a JPEG next to it. Returns None for multi-page PDFs or if it can't be done
+    (WhatsApp templates carry one picture, so longer documents stay PDF)."""
+    try:
+        import pymupdf
+        doc = pymupdf.open(pdf_path)
+        if doc.page_count != 1:
+            return None
+        out = os.path.splitext(pdf_path)[0] + ".jpg"
+        doc[0].get_pixmap(dpi=dpi, alpha=False).save(out, jpg_quality=quality)
+        return out
+    except Exception:  # noqa: BLE001 - fall back to the PDF
+        return None
+
+
 def _send_document(to, template, pdf_path, body_params):
     s = settings()
     if s.get("wa_dry_run") == "1":
@@ -178,7 +193,15 @@ def _send_document(to, template, pdf_path, body_params):
         raise WhatsAppError("WhatsApp isn't set up yet. Add the phone number ID and access token in Settings.")
     base = f"https://graph.facebook.com/{s.get('wa_api_version') or 'v21.0'}/{pnid}"
     headers = {"Authorization": f"Bearer {token}"}
+    as_image = bool(pdf_path) and s.get("wa_send_as") == "image"
+    if as_image:
+        jpg = pdf_to_jpeg(pdf_path)
+        if jpg:
+            pdf_path, template = jpg, template + (s.get("wa_image_suffix") or "_img")
+        else:
+            as_image = False  # multi-page or conversion failed: send the PDF with the normal template
     filename = os.path.basename(pdf_path) if pdf_path else ""
+    mime, kind = ("image/jpeg", "image") if as_image else ("application/pdf", "document")
 
     def check(r):
         try:
@@ -196,11 +219,11 @@ def _send_document(to, template, pdf_path, body_params):
         if pdf_path:
             with open(pdf_path, "rb") as fh:
                 up = requests.post(f"{base}/media", headers=headers, timeout=60,
-                                   data={"messaging_product": "whatsapp", "type": "application/pdf"},
-                                   files={"file": (filename, fh, "application/pdf")})
+                                   data={"messaging_product": "whatsapp", "type": mime},
+                                   files={"file": (filename, fh, mime)})
             media_id = check(up)["id"]
-            components.insert(0, {"type": "header", "parameters": [
-                {"type": "document", "document": {"id": media_id, "filename": filename}}]})
+            media = {"id": media_id} if as_image else {"id": media_id, "filename": filename}
+            components.insert(0, {"type": "header", "parameters": [{"type": kind, kind: media}]})
         payload = {
             "messaging_product": "whatsapp", "to": to, "type": "template",
             "template": {"name": template, "language": {"code": s.get("wa_language") or "en"}, "components": components},

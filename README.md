@@ -80,6 +80,8 @@ Backups are saved in `/opt/erp/data/backups/`. Also copy them off the server reg
    | `balance_reminder` (header: **None**, text only) | Dear {{1}}, your current balance with us is {{2}} as of {{3}}. Please contact us for any query. |
 
    You can reword them, or add Urdu versions. If you do, change the names or language code in Settings.
+**Sending documents as a picture instead of a PDF (optional).** A picture is saved in the customer's phone gallery and is easier to find in WhatsApp than a PDF. In Meta, make a second copy of each template above with the header type set to **Image** and the same body text, and name it like the original plus `_img` (for example `invoice_notification_img`, `payment_receipt_img`, `statement_notification_img`, `quotation_notification_img`). Then in **Settings → WhatsApp** set *Send documents on WhatsApp as* to **Picture (JPEG)**. One-page documents go as a picture; longer ones (for example a long statement) still go as a PDF with the normal template. Keep the PDF setting if you also want the customer to be able to print or search the document.
+
 6. In the ERP go to **Settings → WhatsApp**. Paste the Phone number ID and token, and untick **Test mode**. Send an invoice to your own number first.
 7. Optional: tick **Send invoice automatically** and **Send payment receipt automatically**.
 

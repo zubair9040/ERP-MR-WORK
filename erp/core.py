@@ -277,6 +277,8 @@ SETTING_FIELDS = [
         ("wa_api_version", "Graph API version", "text"), ("wa_language", "Template language code", "text"),
         ("wa_invoice_template", "Invoice template name", "text"),
         ("wa_quotation_template", "Quotation template name", "text"),
+        ("wa_send_as", "Send documents on WhatsApp as", "select:pdf=PDF document|image=Picture (JPEG, saves in the customer's phone gallery)"),
+        ("wa_image_suffix", "Picture mode: add this to each template name (needs a copy of each template with an Image header)", "text"),
         ("wa_receipt_template", "Payment receipt template name", "text"),
         ("wa_payslip_template", "Payslip template name (employee name, month, net salary)", "text"),
         ("wa_statement_template", "Statement template name", "text"),
