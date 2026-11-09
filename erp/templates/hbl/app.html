@@ -25,17 +25,18 @@
    <div class="tot">These DCs are only a preview. Press the button to create them as <b>real invoices in the ERP</b> (PO batch billing). The ERP gives each branch its real DC / invoice number.</div>
    <div class="row" style="margin-top:10px"><button type="button" id="create">Create DCs &amp; invoices in the ERP</button></div></div>
   <div id="rates"></div>
-  <div class="card"><h3>2. Which DCs go in this summary?</h3>
+  <div class="card" id="donecard" style="display:none"><h3 id="donehead">Done</h3><div class="tot" id="donetxt"></div><div class="row" style="margin-top:10px"><a id="donelink" target="_top" style="text-decoration:none"><button type="button">Open these invoices</button></a></div></div>
+  <div class="card" id="cardSel"><h3>2. Which DCs go in this summary?</h3>
    <div class="row"><label>From DC<input type="text" id="from" size="7" inputmode="numeric"></label><label>To DC<input type="text" id="to" size="7" inputmode="numeric"></label>
    <button type="button" class="alt" id="rng">Select range</button><button type="button" class="alt" id="all">Select all</button><button type="button" class="alt" id="none">Clear</button></div>
    <div id="dcs"></div><div class="tot" id="tot"></div><div class="tot" id="chk"></div>
   </div>
-  <div class="card"><h3>3. Numbers</h3>
+  <div class="card" id="cardNum"><h3>3. Numbers</h3>
    <div class="row"><label>SUMMARY NO<input type="text" id="sumno" size="8" inputmode="numeric"></label>
    <label>Sales tax invoice no (MR-)<input type="text" id="inv" size="8" inputmode="numeric"></label>
    <label>ITEM SUMMARY # (optional)<input type="text" id="isn" size="8" inputmode="numeric"></label></div>
   </div>
-  <div class="card chk"><h3>4. Print</h3>
+  <div class="card chk" id="cardPrint"><h3>4. Print</h3>
    <div class="row" style="margin-top:10px"><label>Address slip design<select id="slipstyle"><option value="0" selected>Original (as before)</option><option value="1">1 - Classic, big address</option><option value="2">2 - Address in a box</option><option value="3">3 - Address panel + side boxes</option><option value="4">4 - Black band, giant address</option></select></label><label>DC copies (for printing DCs)<select id="copies"><option value="1">1</option><option value="2" selected>2 (Customer + Office)</option><option value="3">3</option></select></label></div>
    <div class="row" style="margin-top:10px"><button type="button" id="go">Print everything (with DCs)</button><button type="button" id="goND">Everything except DCs</button></div>
    <div class="row" style="margin-top:10px"><button type="button" class="alt" id="goDC">DCs only</button><button type="button" class="alt" id="goBill">Bills only</button><button type="button" class="alt" id="goSlip">Address slips (A5)</button></div>
@@ -43,13 +44,14 @@
   </div>
   </div>
  <div id="out"></div>
- <div class="steps">1. Drop the PO PDF and press <b>Create DCs &amp; invoices in the ERP</b>. 2. Tick the DCs for this summary (untick a line or lower a quantity for a partial billing). 3. Check the summary and sales tax invoice numbers. 4. Press <b>Print</b>. The billing is saved in the ERP, so the rest of the PO can be billed later with new numbers.</div>
+ <div class="steps" id="steps">Drop the PO PDF and press <b>Create DCs &amp; invoices in the ERP</b>. Then work in the ERP <b>Invoices</b> screen: tick the delivered DCs and press <b>Make bill pack</b>.</div>
 </div>
 <style id="pgsize"></style>
 <div id="pages"></div>
 
+<script>window.HBL_PRE={{ pre|tojson }};</script>
 <script src="{{ url_for('static', filename='hbl/pdf.min.js') }}"></script>
 <script src="{{ url_for('static', filename='hbl/exceljs.min.js') }}"></script>
 <script src="{{ url_for('static', filename='hbl/poparse.js') }}"></script>
-<script src="{{ url_for('static', filename='hbl/hbl_app.js') }}?v=7"></script>
+<script src="{{ url_for('static', filename='hbl/hbl_app.js') }}?v=8"></script>
 </body></html>

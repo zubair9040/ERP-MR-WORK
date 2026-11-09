@@ -115,7 +115,7 @@ def index():
     s_next, i_next = _next_billing_numbers()
     pos = q("SELECT b.*, (SELECT COUNT(*) FROM hbl_dcs d WHERE d.batch_id = b.id) AS dcs FROM po_batches b WHERE b.customer_id = ? AND b.void = 0 "
             "AND EXISTS (SELECT 1 FROM hbl_dcs d WHERE d.batch_id = b.id) ORDER BY b.id DESC", (c["id"],)) if c else []
-    return render_template("hbl/index.html", company=company, cust=c, custs=custs, branches=nb, pos=pos, next_dc=next_dc(), next_sumno=s_next, next_sinv=i_next)
+    return render_template("hbl/index.html", company=company, cust=c, custs=custs, branches=nb, pos=pos, rule=dc_rule(company), next_dc=next_dc(), next_sumno=s_next, next_sinv=i_next)
 
 
 @bp.route("/customer", methods=["POST"])
@@ -213,8 +213,51 @@ def read_record():
 
 @bp.route("/app")
 def app_page():
+    """Without ?inv= this is the PO import tool. With ?inv=ids (ticked on the Invoices screen) it opens ready to make the bill pack for those DCs."""
     ensure_items()
-    return render_template("hbl/app.html", cust=customer(), company=co())
+    pre = None
+    ids = [int(p) for v in request.args.getlist("inv") for p in v.split(",") if p.strip().isdigit()]
+    if ids:
+        marks = ",".join("?" * len(ids))
+        rows = q(f"""SELECT d.po_no, d.dc_no, i.number FROM hbl_dcs d JOIN invoices i ON i.id = d.invoice_id JOIN po_batches b ON b.id = d.batch_id
+                     WHERE i.id IN ({marks}) AND i.void = 0 AND b.company_id = ?""", ids + [co()["id"]])
+        pos = sorted({r["po_no"] for r in rows})
+        if not rows:
+            abort(404)
+        if len(pos) > 1:
+            flash("The ticked invoices belong to more than one HBL PO (" + ", ".join(pos) + "). Tick the DCs of one PO, make that bill pack, then do the next.", "err")
+            return redirect(url_for("sales.invoices"))
+        pre = {"po": pos[0], "dcs": [r["dc_no"] or r["number"] for r in rows]}
+    return render_template("hbl/app.html", cust=customer(), company=co(), pre=pre)
+
+
+@bp.route("/delivered", methods=["POST"])
+def mark_delivered():
+    """Marks the ticked invoices delivered (or not) in one go: LCS / TCS confirmed them."""
+    ids = [int(i) for i in request.form.getlist("inv") if i.isdigit()]
+    yes = request.form.get("state", "yes") == "yes"
+    n = 0
+    for iid in ids:
+        r = q("SELECT i.id FROM invoices i JOIN hbl_dcs d ON d.invoice_id = i.id JOIN po_batches b ON b.id = d.batch_id WHERE i.id = ? AND b.company_id = ?", (iid, co()["id"]), one=True)
+        if r:
+            if yes:
+                x("UPDATE invoices SET delivered_on = ?, delivered_by = ? WHERE id = ?", (today(), g.user["name"], iid))
+            else:
+                x("UPDATE invoices SET delivered_on = '', delivered_by = '' WHERE id = ?", (iid,))
+            n += 1
+    commit()
+    flash(f"{n} invoice(s) marked {'delivered' if yes else 'NOT delivered'}.", "ok")
+    back = request.form.get("back", "")
+    return redirect(back if back.startswith("/") and not back.startswith("//") else url_for("sales.invoices"))
+
+
+@bp.route("/rule", methods=["POST"])
+def set_rule():
+    v = request.form.get("rule")
+    if v in ("same", "minus1000", "series"):
+        set_setting(_key("hbl_dc_rule"), v)
+        commit()
+    return redirect(url_for("hbl.index"))
 
 
 @bp.route("/items", methods=["GET", "POST"])
@@ -272,6 +315,12 @@ def next_dc():
     return max(seed, m + 1)
 
 
+def dc_rule(c=None):
+    """How the DC number relates to the ERP invoice number: same | minus1000 | series (its own counter)."""
+    v = settings().get(_key("hbl_dc_rule", c)) or "same"
+    return v if v in ("same", "minus1000", "series") else "same"
+
+
 def _next_billing_numbers(batch_ids=None):
     c = co()
     s = int(settings().get(_key("hbl_next_sumno", c)) or 1) - 1
@@ -313,11 +362,12 @@ def api_po(po):
     if not b or not q("SELECT 1 FROM hbl_dcs WHERE batch_id = ?", (b["id"],)):
         return jsonify(exists=False, next_summary=s, next_sinv=i)
     dcs, bills = [], []
-    for d in q("SELECT d.*, i.number, i.void FROM hbl_dcs d JOIN invoices i ON i.id = d.invoice_id WHERE d.batch_id = ? AND i.void = 0 ORDER BY COALESCE(d.dc_no, i.number)", (b["id"],)):
+    for d in q("SELECT d.*, i.number, i.void, i.delivered_on, i.courier, i.tracking_no FROM hbl_dcs d JOIN invoices i ON i.id = d.invoice_id WHERE d.batch_id = ? AND i.void = 0 ORDER BY COALESCE(d.dc_no, i.number)", (b["id"],)):
         lines = [{"code": l["code"], "name": l["name"], "unit": l["unit"], "origQty": l["orig_qty"], "qty": l["qty"], "price": l["price"],
                   "tax": l["tax"], "cancelled": bool(l["cancelled"])} for l in q("SELECT * FROM hbl_lines WHERE invoice_id = ? ORDER BY code, id", (d["invoice_id"],))]
         dcs.append({"dc": d["dc_no"] or d["number"], "inv": d["number"], "req": d["req"], "po": po, "cc": d["cc"], "loc": d["loc"], "person": d["person"],
-                    "phone": d["phone"], "date": d["date"], "lines": lines, "iid": d["invoice_id"]})
+                    "phone": d["phone"], "date": d["date"], "lines": lines, "iid": d["invoice_id"],
+                    "delivered": d["delivered_on"] or "", "courier": d["courier"] or "", "tracking": d["tracking_no"] or ""})
     for bl in q("SELECT * FROM hbl_billings WHERE batch_id = ? ORDER BY id", (b["id"],)):
         byinv = {}
         for l in q("SELECT * FROM hbl_billing_lines WHERE billing_id = ?", (bl["id"],)):
@@ -390,8 +440,14 @@ def api_import():
         norm = str(int(cc)) if cc.isdigit() else cc  # the bank writes 0627, the branch list keeps 627
         br = q("SELECT * FROM customer_branches WHERE customer_id = ? AND code IN (?, ?) LIMIT 1", (c["id"], cc, norm), one=True)
         number = next_invoice_number(comp["id"])
-        dc_no = next_dc()
-        set_setting(_key("hbl_next_dc"), str(dc_no + 1))
+        rule = dc_rule(comp)
+        if rule == "same":
+            dc_no = number
+        elif rule == "minus1000" and number > 1000:
+            dc_no = number - 1000
+        else:
+            dc_no = next_dc()
+            set_setting(_key("hbl_next_dc"), str(dc_no + 1))
         due = date
         iid = x("""INSERT INTO invoices (number, date, due_date, customer_id, rep_id, notes, tax_rate, subtotal, discount, tax, total, created_by, created_at,
                    company_id, branch_id, batch_id, ref_no, po_no, deliver_to) VALUES (?,?,?,?,?,?,0,0,0,0,0,?,?,?,?,?,?,?,?)""",

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Invoices{% endblock %}
-{% block actions %}<a class="btn grey" href="{{ url_for('reports.open_invoices') }}">{{ icon('list', 16) }} All unpaid bills</a>{% endblock %}
+{% block actions %}{% if hbl %}<a class="btn" target="_blank" href="{{ url_for('hbl.app_page') }}">{{ icon('upload', 16) }} Import HBL PO (PDF)</a>{% endif %}<a class="btn grey" href="{{ url_for('reports.open_invoices') }}">{{ icon('list', 16) }} All unpaid bills</a>{% endblock %}
 {% block content %}
 <div class="card">
 <form class="filters">
@@ -8,6 +8,7 @@
   <label>Status<select name="status">{% for v, t in [('', 'All'), ('open', 'Unpaid'), ('over', 'Overdue'), ('paid', 'Paid'), ('void', 'Void')] %}
     <option value="{{ v }}" {{ 'selected' if request.args.status == v }}>{{ t }}</option>{% endfor %}</select></label>
   {% if not is_rep() %}<label>Rep<select name="rep"><option value="">All</option>{% for r in reps %}<option value="{{ r.id }}" {{ 'selected' if request.args.rep == r.id|string }}>{{ r.code }}</option>{% endfor %}</select></label>{% endif %}
+  {% if any_hbl or request.args.po %}<label>HBL PO<input name="po" value="{{ request.args.po or '' }}" size="10" placeholder="48466-535"></label>{% endif %}
   <label>From<input type="date" name="from" value="{{ request.args.get('from', '') }}"></label>
   <label>To<input type="date" name="to" value="{{ request.args.to or '' }}"></label>
   <label>Delivery<select name="delivered">{% for v, t in [('', 'All'), ('no', 'Not delivered'), ('yes', 'Delivered')] %}<option value="{{ v }}" {{ 'selected' if (request.args.delivered or '') == v }}>{{ t }}</option>{% endfor %}</select></label>
@@ -15,14 +16,30 @@
   {% set qs = request.query_string.decode() %}<a class="btn light" href="?{{ qs }}{{ '&' if qs }}export=xlsx">{{ icon('excel', 16) }} Excel</a>
   <a class="btn light" target="_blank" href="?{{ qs }}{{ '&' if qs }}export=pdf">{{ icon('pdf', 16) }} PDF</a>
 </form>
+{% if any_hbl %}<form method="post" id="selform" action="{{ url_for('hbl.mark_delivered') }}">{{ csrf_field() }}<input type="hidden" name="back" value="{{ request.full_path }}">
+<div class="selbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin:8px 0;border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:10px">
+  <b id="selcount">0 HBL invoices ticked</b>
+  <button class="btn alt small" id="packbtn" formaction="{{ url_for('hbl.app_page') }}" formmethod="get" formtarget="_blank" disabled>{{ icon('print', 14) }} Make bill pack from ticked (summary, item summary, bills)</button>
+  <button class="btn light small" name="state" value="yes" disabled data-sel>{{ icon('check', 14) }} Mark ticked delivered</button>
+  <button class="btn light small" name="state" value="no" disabled data-sel>Mark NOT delivered</button>
+  <span class="muted">Tick the DCs that LCS / TCS have delivered; the others stay open for the next bill pack.</span></div>{% endif %}
 <div class="tablewrap"><table>
-<tr><th>#</th><th>Date</th><th>Customer</th><th>Rep</th><th>Due</th><th class="n">Total</th><th class="n">Open</th><th>Status</th><th>Delivery</th></tr>
-{% for r in rows %}<tr class="{{ 'voided' if r.i.void }}"><td><a href="{{ url_for('sales.invoice_view', iid=r.i.id) }}">{{ r.i.number }}</a></td>
+<tr>{% if any_hbl %}<th><input type="checkbox" id="selall" title="Tick all HBL invoices shown"></th><th>DC</th>{% endif %}<th>#</th><th>Date</th><th>Customer</th><th>Rep</th><th>Due</th><th class="n">Total</th><th class="n">Open</th><th>Status</th><th>Delivery</th></tr>
+{% for r in rows %}<tr class="{{ 'voided' if r.i.void }}">{% if any_hbl %}<td>{% if r.i.hbl_dc is not none and not r.i.void %}<input type="checkbox" class="selck" name="inv" value="{{ r.i.id }}">{% endif %}</td><td>{{ r.i.hbl_dc if r.i.hbl_dc is not none else '' }}</td>{% endif %}<td><a href="{{ url_for('sales.invoice_view', iid=r.i.id) }}">{{ r.i.number }}</a></td>
   <td>{{ r.i.date|d }}</td><td>{{ r.i.customer }}{% if all_companies()|length > 1 and not cur_company() %} {{ co_tag(r.i.company_id) }}{% endif %}</td><td>{{ r.i.rep_code or '' }}</td><td>{{ r.i.due_date|d }}</td>
   <td class="n">{{ r.i.total|money }}</td><td class="n">{{ r.open|money(true) }}</td><td><span class="tag {{ r.cls }}">{{ r.label }}</span></td>
   <td>{% if not r.i.void %}{% if r.i.delivered_on %}<span class="dl-tag yes">✓ {{ r.i.delivered_on|d }}</span>{% else %}<form method="post" action="{{ url_for('sales.invoice_delivered', iid=r.i.id) }}" class="inl">{{ csrf_field() }}<input type="hidden" name="back" value="{{ request.full_path }}"><button class="dl-tag no" style="border:0;cursor:pointer" title="Click to mark delivered">Not delivered</button></form>{% endif %}{% endif %}</td></tr>
-{% else %}<tr><td colspan="9" class="muted">No invoices found.</td></tr>{% endfor %}
-<tr class="total"><td colspan="5">{{ rows|length }} invoices{% if rows|length == 500 %} (latest 500 — narrow the dates to see more){% endif %}</td>
+{% else %}<tr><td colspan="11" class="muted">No invoices found.</td></tr>{% endfor %}
+<tr class="total"><td colspan="{{ 7 if any_hbl else 5 }}">{{ rows|length }} invoices{% if rows|length == 500 %} (latest 500 — narrow the dates to see more){% endif %}</td>
   <td class="n">{{ total|money }}</td><td class="n">{{ open_total|money }}</td><td></td><td></td></tr>
-</table></div></div>
+</table></div>{% if any_hbl %}</form>{% endif %}</div>
+{% if any_hbl %}<script>
+(function () {
+  const cks = () => [...document.querySelectorAll('.selck')], f = document.getElementById('selform');
+  function upd() { const n = cks().filter(c => c.checked).length; document.getElementById('selcount').textContent = n + ' HBL invoice' + (n === 1 ? '' : 's') + ' ticked';
+    f.querySelectorAll('button').forEach(b => b.disabled = n === 0); }
+  document.getElementById('selall').addEventListener('change', e => { cks().forEach(c => c.checked = e.target.checked); upd(); });
+  cks().forEach(c => c.addEventListener('change', upd)); upd();
+})();
+</script>{% endif %}
 {% endblock %}

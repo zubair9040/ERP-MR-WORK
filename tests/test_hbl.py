@@ -32,6 +32,7 @@ def _setup(app):
         x("UPDATE companies SET hbl_enabled = 0")
         x("UPDATE companies SET hbl_enabled = 1, hbl_customer_id = ? WHERE id = ?", (c["id"], c["company_id"]))
         set_setting(f"hbl_next_dc_c{c['company_id']}", "56988")
+        set_setting(f"hbl_dc_rule_c{c['company_id']}", "series")
         commit()
     return c["id"]
 
@@ -136,3 +137,29 @@ def test_hbl_customer_is_found_automatically_and_branches_load_by_themselves(app
         commit()
     r = admin.get("/hbl/api/po/99999-001")
     assert r.status_code == 400 and "Setup" in r.json["error"]
+
+
+def test_default_dc_number_is_the_invoice_number_and_invoices_screen_ticks_and_delivery(app):
+    cid = _setup(app)
+    with app.app_context():
+        x("DELETE FROM settings WHERE key LIKE 'hbl_dc_rule_c%'")
+        commit()
+    admin = _client(app)
+    body = {"po": "66666-001", "date": "2026-11-09", "header": {"excl": 100, "tax": 18, "incl": 118},
+            "dcs": [_dc("800001", "102", "102-BAHAWALPUR", [("SE00000581", "BALL PEN RED", 100, 6.48)]),
+                    _dc("800002", "105", "105-CHISHTIAN", [("SE00000581", "BALL PEN RED", 200, 6.48)])]}
+    r = _post(admin, "/hbl/api/import", body).json
+    assert r["ok"] and all(c["dc"] == c["inv"] for c in r["created"])
+    page = admin.get("/invoices?po=66666-001").text
+    assert "selform" in page and str(r["created"][0]["inv"]) in page
+    ids = []
+    with app.app_context():
+        ids = [q("SELECT id FROM invoices WHERE number = ?", (c["inv"],), one=True)["id"] for c in r["created"]]
+    t = _csrf(admin)
+    resp = admin.post("/hbl/delivered", data={"_csrf": t, "inv": [str(i) for i in ids], "state": "yes"})
+    assert resp.status_code in (200, 302)
+    with app.app_context():
+        row = q("SELECT delivered_on FROM invoices WHERE id = ?", (ids[0],), one=True)
+        assert row["delivered_on"]
+    pk = admin.get("/hbl/app?" + "&".join(f"inv={i}" for i in ids))
+    assert pk.status_code == 200

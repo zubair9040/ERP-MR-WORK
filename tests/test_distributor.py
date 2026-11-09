@@ -83,6 +83,7 @@ def test_distributor_runs_its_own_hbl_billing_with_its_own_numbers(app):
     ours, theirs, custs = _two_companies(app)
     with app.app_context():
         set_setting(f"hbl_next_dc_c{theirs}", "1")
+        set_setting(f"hbl_dc_rule_c{theirs}", "series")
         commit()
     dist = _client(app, "rana", "rana-pass-1")
     body = {"po": "77777-001", "date": "2026-11-09", "header": {}, "dcs": [_dc("1", "102", "102-X", [("SE00000581", "BALL PEN RED", 10, 6.48)])]}

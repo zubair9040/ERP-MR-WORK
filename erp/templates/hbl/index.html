@@ -17,8 +17,17 @@
 </div>
 {% if cust %}
 <div class="card">
+  <h3>DC number</h3>
+  <form method="post" action="{{ url_for('hbl.set_rule') }}" class="rowform">{{ csrf_field() }}
+    <label>How the DC number is made<select name="rule">
+      {% for v, t in [('same', 'Same as the invoice number (one number everywhere)'), ('minus1000', 'Invoice number minus 1000 (your old pairs, e.g. DC 56988 = invoice 57988)'), ('series', 'Its own counter (continues from the numbers below)')] %}
+      <option value="{{ v }}" {{ 'selected' if rule == v }}>{{ t }}</option>{% endfor %}</select></label>
+    <button class="btn alt small">Save</button></form>
+  <p class="muted">The DC number shows next to each HBL invoice on the Invoices screen, and on the printed bill and DC.</p>
+</div>
+<div class="card">
   <h3>Numbers</h3>
-  <p class="muted">DC numbers are their own series. Invoice numbers come from this company's invoice numbering in the ERP.</p>
+  <p class="muted">Only used when the DC number has its own counter. Summary and sales tax invoice numbers always continue from here.</p>
   <form method="post" action="{{ url_for('hbl.set_numbers') }}" class="rowform">{{ csrf_field() }}
     <label>Next DC no<input name="next_dc" value="{{ next_dc }}" size="8"></label>
     <label>Next summary no<input name="next_sumno" value="{{ next_sumno }}" size="8"></label>

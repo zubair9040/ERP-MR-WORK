@@ -2,7 +2,9 @@
 const $=id=>document.getElementById(id);
 let NAMES={},PRICES={},ADDR={};const SEED_DC=0;
 const CSRF=(document.querySelector('meta[name=csrf]')||{}).content||'';
-let PREVIEW=false;let HAVE_CUSTOMER=true;
+let PREVIEW=false;let HAVE_CUSTOMER=true;const PRE=window.HBL_PRE||null;
+function showDone(po,txt){['cardSel','cardNum','cardPrint','createcard'].forEach(i=>{const e=$(i);if(e)e.style.display='none';});$('rates').style.display='none';$('donecard').style.display='block';$('donehead').textContent='PO '+po+' is in the ERP';$('donetxt').innerHTML=txt;$('donelink').href='/invoices?po='+encodeURIComponent(po);$('donecard').scrollIntoView();}
+function decorate(po){const P1=byPO[po]||{};document.querySelectorAll('.dr').forEach(tr=>{const inp=tr.querySelector('.dcn');const d=P1[+inp.dataset.dc];if(!d||tr.dataset.dec)return;tr.dataset.dec=1;const c=tr.children[2];const st=d.delivered?'<span style="color:#047857;font-weight:bold"> \u2713 delivered '+esc(d.delivered)+'</span>':'<span style="color:#b45309;font-weight:bold"> \u23f3 not delivered</span>';c.insertAdjacentHTML('beforeend','<br><span style="font-size:12px">'+st+(d.courier||d.tracking?' <span style="color:var(--sub)">'+esc((d.courier+' '+d.tracking).trim())+'</span>':'')+'</span>');});}
 let CO={name:'',address:'',ntn:'',gst:'',lines:[]};
 const coLine=l=>/^WA:/i.test(l)?(WA+' '+esc(l.replace(/^WA:\s*/i,''))):esc(l);
 const coRight=()=>CO.lines.map(coLine).join('<br>');
@@ -147,7 +149,7 @@ async function loadPdf(file){
     const po0=P.header.po;
     if(!HAVE_CUSTOMER){msg('The PDF is fine, but the HBL head-office customer is not chosen yet. Click "Setup" above this box, pick the customer (e.g. HBL / Habib Bank) and Save, then drop the PDF again.',true);return;}
     const st=await api('/hbl/api/po/'+encodeURIComponent(po0));
-    if(st.exists){PARSED=null;await loadServerPO(po0);msg('PO '+po0+' is already in the ERP, so the saved DCs and invoice numbers are shown (nothing new was created).');return;}
+    if(st.exists){PARSED=null;await loadServerPO(po0);if(!PRE)showDone(po0,'This PO was already imported, so nothing new was created. Go to the <b>Invoices</b> screen to make the bill pack.');msg('PO '+po0+' is already in the ERP.');return;}
     PARSED=P;PREVIEW=true;DCMAP=null;
     const nx=await api('/hbl/api/next');$('dc0').value=String(nx.next_dc);window.__inv0=nx.next_invoice;
     if(nx.next_summary&&!$('sumno').value)$('sumno').value=String(nx.next_summary);if(nx.next_sinv&&!$('inv').value)$('inv').value=String(nx.next_sinv);
@@ -169,7 +171,7 @@ async function loadServerPO(po){
   const sel=$('po');if(![...sel.options].some(o=>o.value===po)){const o=document.createElement('option');o.value=o.textContent=po;sel.appendChild(o);}
   setupUI('PO '+po+': '+st.dcs.length+' DCs from the ERP. DC no and invoice no are the real numbers. <a href="'+st.batch_url+'" target="_top">Open this PO in PO batch billing</a>');
   $('po').value=po;fillDC();$('info').innerHTML=$('info').textContent;
-  document.querySelectorAll('.ck').forEach(c=>c.checked=!billedOn(po,+c.value).length);upd();
+  document.querySelectorAll('.ck').forEach(c=>c.checked=PRE?PRE.dcs.includes(+c.value):!billedOn(po,+c.value).length);upd();decorate(po);
 }
 async function createInErp(){
   const P=PARSED;if(!P||!PREVIEW)return;const po=P.header.po;const D=byPO[po];if(!D){return;}
@@ -178,6 +180,7 @@ async function createInErp(){
   try{
     const r=await api('/hbl/api/import',{po,date:$('date').value,header:{excl:P.header.excl,tax:P.header.tax,incl:P.header.incl},dcs});
     PARSED=null;PREVIEW=false;delete byPO[po];await loadServerPO(po);
+    if(!PRE)showDone(po,'<b>'+r.created.length+' invoices were created</b> (DC '+r.created[0].dc+' to '+r.created[r.created.length-1].dc+', invoices '+r.created[0].inv+' to '+r.created[r.created.length-1].inv+'). Now go to the <b>Invoices</b> screen: tick the DCs that are delivered and press <b>Make bill pack</b>.');
     msg(r.created.length+' DCs / invoices created in the ERP (DC '+r.created[0].dc+' to '+r.created[r.created.length-1].dc+', invoices '+r.created[0].inv+' to '+r.created[r.created.length-1].inv+').'+(r.skipped?(' '+r.skipped+' already existed.'):''));
   }catch(e){msg(e.message,true);}finally{$('create').disabled=false;}
 }
@@ -378,6 +381,7 @@ function openPrint(){
 }
 async function make(mode){
   const O=sel();if(!O.length){msg('Tick at least one DC.',true);return;}
+  const nd=O.filter(d=>d.delivered===''||(d.delivered===undefined&&false));if(nd.length&&!confirm(nd.length+' ticked DC(s) are not marked delivered yet ('+nd.slice(0,6).map(d=>d.dc).join(', ')+(nd.length>6?' ...':'')+'). Bill them anyway?'))return;
   const S=O.map(liveDC).filter(d=>d.lines.length);if(!S.length){msg('All items in the ticked DCs are cancelled.',true);return;}
   const inp=$('date').value,no=$('sumno').value.trim(),inv=$('inv').value.trim(),po=$('po').value;
   const M=mode||'all';const want={sum:M==='all'||M==='nodc',inv:M==='all'||M==='nodc',und:M==='all'||M==='nodc',item:M==='all'||M==='nodc',bill:M==='all'||M==='nodc'||M==='bill',dc:M==='all'||M==='dc',slip:M==='slip'};
@@ -478,12 +482,17 @@ window.__t={sel,fillDC,slipPage,dcList};
 (async function init(){
   try{
     const L=await api('/hbl/api/lookup');NAMES=L.NAMES;PRICES=L.PRICES;ADDR=L.ADDR;CO=L.company;
-    HAVE_CUSTOMER=!!L.customer;if(!L.customer){msg('First choose the HBL head-office customer: click "Setup" above this box, pick the customer (e.g. HBL / Habib Bank) and Save.',true);return;}
-    const ps=await api('/hbl/api/pos');
-    if(ps.pos.length){const s=$('po');s.innerHTML='';ps.pos.forEach(p=>{const o=document.createElement('option');o.value=o.textContent=p;s.appendChild(o);});
-      $('date').value=new Date().toISOString().slice(0,10);$('step2').style.display='block';await loadServerPO(ps.pos[ps.pos.length-1]);msg('Saved POs are listed. Drop a new PO PDF to bill a new one.');}
+    HAVE_CUSTOMER=!!L.customer;if(!L.customer){msg('First choose the HBL head-office customer: click "Setup" above this box (or on the HBL setup page), pick the customer (e.g. HBL / Habib Bank) and Save.',true);return;}
+    if(PRE){
+      $('drop').style.display='none';document.querySelector('h1').textContent='HBL bill pack';
+      document.querySelector('.sub').textContent='Bill pack for the '+PRE.dcs.length+' invoice(s) you ticked. Check the numbers, then print.';
+      $('date').value=new Date().toISOString().slice(0,10);$('step2').style.display='block';
+      await loadServerPO(PRE.po);$('cardNum').scrollIntoView();
+      msg(PRE.dcs.length+' DC(s) ticked from the Invoices screen. The others stay open for the next bill pack.');
+    }else{
+      $('cardNum').style.display='none';$('cardPrint').style.display='none';
+    }
   }catch(e){msg(e.message,true);}
 })();
-
 try{const sendH=()=>parent.postMessage({hbl_h:document.documentElement.scrollHeight},'*');new ResizeObserver(sendH).observe(document.body);sendH();}catch(e){}
 })();

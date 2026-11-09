@@ -385,6 +385,9 @@ def invoices():
     if a.get("rep", type=int) and not is_rep():
         where += " AND i.rep_id = :rep"
         args["rep"] = a.get("rep", type=int)
+    if a.get("po"):
+        where += " AND i.po_no = :po"
+        args["po"] = a["po"].strip()
     if a.get("delivered") == "yes":
         where += " AND i.delivered_on != ''"
     elif a.get("delivered") == "no":
@@ -395,8 +398,8 @@ def invoices():
     if parse_date(a.get("to")):
         where += " AND i.date <= :to"
         args["to"] = a["to"]
-    rows = q(f"""SELECT i.*, c.name AS customer, r.code AS rep_code FROM invoices i
-                 JOIN customers c ON c.id = i.customer_id LEFT JOIN reps r ON r.id = i.rep_id
+    rows = q(f"""SELECT i.*, c.name AS customer, r.code AS rep_code, hd.dc_no AS hbl_dc, hd.po_no AS hbl_po FROM invoices i
+                 JOIN customers c ON c.id = i.customer_id LEFT JOIN reps r ON r.id = i.rep_id LEFT JOIN hbl_dcs hd ON hd.invoice_id = i.id
                  WHERE 1 = 1 {where} ORDER BY i.date DESC, i.number DESC LIMIT 500""", args)
     cache, out = {}, []
     status = a.get("status", "")
@@ -415,7 +418,10 @@ def invoices():
         return table_response(a["export"], "Invoices", ["Num", "Date", "Customer", "Rep", "Due", "Total", "Open", "Status", "Delivered"],
                               data, {5, 6}, ["Total", "", "", "", "", sum(r["i"]["total"] for r in out if not r["i"]["void"]),
                                              sum(r["open"] for r in out), "", ""])
-    return render_template("invoices.html", rows=out, reps=q("SELECT * FROM reps ORDER BY name"),
+    from .hbl import co as hbl_co
+    from .perms import has
+    hbl = hbl_co() if has("invoices.edit") else None
+    return render_template("invoices.html", rows=out, hbl=hbl, any_hbl=any(r["i"]["hbl_dc"] for r in out), reps=q("SELECT * FROM reps ORDER BY name"),
                            total=sum(r["i"]["total"] for r in out if not r["i"]["void"]),
                            open_total=sum(r["open"] for r in out))
 
