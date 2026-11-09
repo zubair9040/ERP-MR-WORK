@@ -58,8 +58,31 @@ def ensure_items(c=None):
 
 
 def customer():
+    """The bank's head-office customer of this company. If none is chosen yet and exactly one customer looks like HBL / Habib Bank, use it."""
     c = co()
-    return q("SELECT * FROM customers WHERE id = ?", (c["hbl_customer_id"],), one=True) if c and c["hbl_customer_id"] else None
+    if not c:
+        return None
+    if not c["hbl_customer_id"]:
+        found = q("SELECT id FROM customers WHERE company_id = ? AND active = 1 AND (name LIKE '%HBL%' OR name LIKE '%Habib%')", (c["id"],))
+        if len(found) != 1:
+            return None
+        x("UPDATE companies SET hbl_customer_id = ? WHERE id = ?", (found[0]["id"], c["id"]))
+        commit()
+        return q("SELECT * FROM customers WHERE id = ?", (found[0]["id"],), one=True)
+    return q("SELECT * FROM customers WHERE id = ?", (c["hbl_customer_id"],), one=True)
+
+
+def ensure_branches(c):
+    """The bank's branch list (cost code, name, region, address, phone) is added to the HBL customer the first time it is needed."""
+    if not c or q("SELECT COUNT(*) AS n FROM customer_branches WHERE customer_id = ?", (c["id"],), one=True)["n"] >= 100:
+        return
+    seed = json.load(open(SEED, encoding="utf-8"))
+    have = {r["code"] for r in q("SELECT code FROM customer_branches WHERE customer_id = ?", (c["id"],))}
+    for code, (name, region, address, phone) in seed["ADDR"].items():
+        if code not in have:
+            x("INSERT INTO customer_branches (customer_id, name, code, address, phone, region, active, created_at) VALUES (?,?,?,?,?,?,1,?)",
+              (c["id"], name, code, address, phone, region, now()))
+    commit()
 
 
 def branding(c):
@@ -227,6 +250,7 @@ def api_lookup():
     c = customer()
     company = co()
     ensure_items()
+    ensure_branches(c)
     names, prices = {}, {}
     seed_names = json.load(open(SEED, encoding="utf-8"))["NAMES"]
     for r in q("SELECT * FROM hbl_company_items WHERE company_id = ? AND active = 1", (company["id"],)):
@@ -281,7 +305,9 @@ def api_next():
 
 @bp.route("/api/po/<po>")
 def api_po(po):
-    c = customer() or abort(400)
+    c = customer()
+    if not c:
+        return jsonify(error="Choose the HBL head-office customer first: click 'Setup' above this box, pick the customer and Save."), 400
     b = _batch(po, c)
     s, i = _next_billing_numbers()
     if not b or not q("SELECT 1 FROM hbl_dcs WHERE batch_id = ?", (b["id"],)):
@@ -346,7 +372,7 @@ def api_import():
     j = request.get_json(silent=True) or {}
     po = str(j.get("po") or "").strip()
     if not c:
-        return jsonify(error="Choose the HBL customer first (HBL PO pack page)."), 400
+        return jsonify(error="Choose the HBL head-office customer first: click 'Setup' above this box, pick the customer and Save."), 400
     if not po or not j.get("dcs"):
         return jsonify(error="Nothing to create."), 400
     comp = co()

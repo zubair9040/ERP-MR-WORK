@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 let NAMES={},PRICES={},ADDR={};const SEED_DC=0;
 const CSRF=(document.querySelector('meta[name=csrf]')||{}).content||'';
-let PREVIEW=false;
+let PREVIEW=false;let HAVE_CUSTOMER=true;
 let CO={name:'',address:'',ntn:'',gst:'',lines:[]};
 const coLine=l=>/^WA:/i.test(l)?(WA+' '+esc(l.replace(/^WA:\s*/i,''))):esc(l);
 const coRight=()=>CO.lines.map(coLine).join('<br>');
@@ -145,6 +145,7 @@ async function loadPdf(file){
     const P=POPARSE.parsePo(pages);
     if(!P.rows.length){msg('No PO lines found in this PDF. Is it an HBL purchase order?',true);return;}
     const po0=P.header.po;
+    if(!HAVE_CUSTOMER){msg('The PDF is fine, but the HBL head-office customer is not chosen yet. Click "Setup" above this box, pick the customer (e.g. HBL / Habib Bank) and Save, then drop the PDF again.',true);return;}
     const st=await api('/hbl/api/po/'+encodeURIComponent(po0));
     if(st.exists){PARSED=null;await loadServerPO(po0);msg('PO '+po0+' is already in the ERP, so the saved DCs and invoice numbers are shown (nothing new was created).');return;}
     PARSED=P;PREVIEW=true;DCMAP=null;
@@ -477,7 +478,7 @@ window.__t={sel,fillDC,slipPage,dcList};
 (async function init(){
   try{
     const L=await api('/hbl/api/lookup');NAMES=L.NAMES;PRICES=L.PRICES;ADDR=L.ADDR;CO=L.company;
-    if(!L.customer){msg('Choose the HBL customer on the "HBL PO pack" page first.',true);return;}
+    HAVE_CUSTOMER=!!L.customer;if(!L.customer){msg('First choose the HBL head-office customer: click "Setup" above this box, pick the customer (e.g. HBL / Habib Bank) and Save.',true);return;}
     const ps=await api('/hbl/api/pos');
     if(ps.pos.length){const s=$('po');s.innerHTML='';ps.pos.forEach(p=>{const o=document.createElement('option');o.value=o.textContent=p;s.appendChild(o);});
       $('date').value=new Date().toISOString().slice(0,10);$('step2').style.display='block';await loadServerPO(ps.pos[ps.pos.length-1]);msg('Saved POs are listed. Drop a new PO PDF to bill a new one.');}

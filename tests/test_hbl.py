@@ -114,3 +114,25 @@ def test_hbl_invoices_work_with_the_normal_erp_pages(app):
     for url in (f"/po/{inv['batch_id']}", "/po/", f"/invoices/{inv['id']}?summary=1", f"/invoices/{inv['id']}/edit", f"/invoices/{inv['id']}.pdf",
                 f"/invoices/{inv['id']}/dc.pdf", "/invoices"):
         assert admin.get(url).status_code == 200, url
+
+
+def test_hbl_customer_is_found_automatically_and_branches_load_by_themselves(app):
+    admin = _client(app)
+    with app.app_context():
+        c = q("SELECT id, company_id FROM customers WHERE active = 1 ORDER BY company_id, id LIMIT 1", one=True)
+        x("UPDATE companies SET hbl_enabled = 0")
+        x("UPDATE companies SET hbl_enabled = 1, hbl_customer_id = NULL WHERE id = ?", (c["company_id"],))
+        x("DELETE FROM customer_branches WHERE customer_id = ?", (c["id"],))
+        x("UPDATE customers SET name = 'HBL Head Office (test)' WHERE id = ?", (c["id"],))
+        commit()
+    # no customer chosen: a clear message, not a bare 400
+    look = admin.get("/hbl/api/lookup").json
+    assert look["customer"] is True and len(look["ADDR"]) > 2000  # exactly one customer looks like HBL: picked, branches loaded
+    with app.app_context():
+        assert q("SELECT hbl_customer_id FROM companies WHERE id = ?", (c["company_id"],), one=True)["hbl_customer_id"] == c["id"]
+    with app.app_context():
+        x("UPDATE companies SET hbl_customer_id = NULL WHERE id = ?", (c["company_id"],))
+        x("UPDATE customers SET name = 'Some Shop' WHERE id = ?", (c["id"],))
+        commit()
+    r = admin.get("/hbl/api/po/99999-001")
+    assert r.status_code == 400 and "Setup" in r.json["error"]
