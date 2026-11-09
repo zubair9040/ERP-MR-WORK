@@ -13,7 +13,19 @@
 </div>
 {% if cust %}
 <div class="card">
-  <h3>2. Bills already made in the ERP</h3>
+  <h3>2. Numbers</h3>
+  <p class="muted">DC numbers are their own series. Invoice numbers come from the ERP's invoice numbering (the next one is shown on the pack page).</p>
+  <form method="post" action="{{ url_for('hbl.set_numbers') }}" class="rowform">{{ csrf_field() }}
+    <label>Next DC no<input name="next_dc" value="{{ next_dc }}" size="8"></label>
+    <label>Next summary no<input name="next_sumno" value="{{ next_sumno }}" size="8"></label>
+    <label>Next sales tax invoice no (MR-)<input name="next_sinv" value="{{ next_sinv }}" size="8"></label>
+    <button class="btn alt small">Save numbers</button></form>
+  <form method="post" action="{{ url_for('hbl.read_record') }}" enctype="multipart/form-data" class="rowform" style="margin-top:10px">{{ csrf_field() }}
+    <label>Or read your old HBL_RECORD Excel to continue its numbers<input type="file" name="record" accept=".xlsx,.xlsm"></label>
+    <button class="btn light small">Read record</button></form>
+</div>
+<div class="card">
+  <h3>3. Bills already made in the ERP</h3>
   <table><tr><th>PO</th><th>DCs / invoices</th><th></th></tr>
     {% for b in pos %}<tr><td><b>{{ b.po_no }}</b></td><td>{{ b.dcs }}</td><td><a href="{{ url_for('po.view', bid=b.id) }}">Open in PO batch billing</a></td></tr>
     {% else %}<tr><td colspan="3" class="muted">No HBL PO has been created yet. Drop the first PO PDF below.</td></tr>{% endfor %}</table>

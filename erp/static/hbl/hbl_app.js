@@ -123,7 +123,7 @@ function buildFromPdf(){
   });
   const P1={};
   order.forEach((rq,i)=>{const d=map[rq];const old=DCMAP&&DCMAP[rq];const dc=old?old.dc:nxt++;
-    const o={dc,inv:old?old.inv:dc+1000,req:rq,po,loc:d.loc,cc:d.cc,person:d.person,phone:d.phone,lines:d.lines.sort((a,b)=>a.code<b.code?-1:a.code>b.code?1:0)};tot(o);P1[dc]=o;
+    const o={dc,inv:old?old.inv:((window.__inv0||0)+i),req:rq,po,loc:d.loc,cc:d.cc,person:d.person,phone:d.phone,lines:d.lines.sort((a,b)=>a.code<b.code?-1:a.code>b.code?1:0)};tot(o);P1[dc]=o;
     contacts[rq]={person:d.person,phone:d.phone};});
   byPO[po]=P1;POTOT[po]={excl:P.header.excl,tax:P.header.tax,incl:P.header.incl};
   const FIT=capOn?fitToPO(po,P1):[];
@@ -144,7 +144,7 @@ async function loadPdf(file){
     const st=await api('/hbl/api/po/'+encodeURIComponent(po0));
     if(st.exists){PARSED=null;await loadServerPO(po0);msg('PO '+po0+' is already in the ERP, so the saved DCs and invoice numbers are shown (nothing new was created).');return;}
     PARSED=P;PREVIEW=true;DCMAP=null;
-    const nx=await api('/hbl/api/next');$('dc0').value=String(nx.next_invoice);
+    const nx=await api('/hbl/api/next');$('dc0').value=String(nx.next_dc);window.__inv0=nx.next_invoice;
     if(nx.next_summary&&!$('sumno').value)$('sumno').value=String(nx.next_summary);if(nx.next_sinv&&!$('inv').value)$('inv').value=String(nx.next_sinv);
     buildFromPdf();
     $('createcard').style.display='block';
@@ -162,8 +162,9 @@ async function loadServerPO(po){
   if(st.next_sinv&&(!$('inv').value||parseInt($('inv').value)<st.next_sinv))$('inv').value=String(st.next_sinv);
   window.__batchUrl=st.batch_url;
   const sel=$('po');if(![...sel.options].some(o=>o.value===po)){const o=document.createElement('option');o.value=o.textContent=po;sel.appendChild(o);}
-  setupUI('PO '+po+': '+st.dcs.length+' DCs from the ERP. DC no = invoice no. <a href="'+st.batch_url+'" target="_top">Open this PO in PO batch billing</a>');
+  setupUI('PO '+po+': '+st.dcs.length+' DCs from the ERP. DC no and invoice no are the real numbers. <a href="'+st.batch_url+'" target="_top">Open this PO in PO batch billing</a>');
   $('po').value=po;fillDC();$('info').innerHTML=$('info').textContent;
+  document.querySelectorAll('.ck').forEach(c=>c.checked=!billedOn(po,+c.value).length);upd();
 }
 async function createInErp(){
   const P=PARSED;if(!P||!PREVIEW)return;const po=P.header.po;const D=byPO[po];if(!D){return;}
@@ -172,7 +173,7 @@ async function createInErp(){
   try{
     const r=await api('/hbl/api/import',{po,date:$('date').value,header:{excl:P.header.excl,tax:P.header.tax,incl:P.header.incl},dcs});
     PARSED=null;PREVIEW=false;delete byPO[po];await loadServerPO(po);
-    msg(r.created.length+' DCs / invoices created in the ERP (DC no = invoice no, from '+r.created[0].dc+' to '+r.created[r.created.length-1].dc+').'+(r.skipped?(' '+r.skipped+' already existed.'):''));
+    msg(r.created.length+' DCs / invoices created in the ERP (DC '+r.created[0].dc+' to '+r.created[r.created.length-1].dc+', invoices '+r.created[0].inv+' to '+r.created[r.created.length-1].inv+').'+(r.skipped?(' '+r.skipped+' already existed.'):''));
   }catch(e){msg(e.message,true);}finally{$('create').disabled=false;}
 }
 async function saveBilling(O,po,date,no,inv,isn){

@@ -343,6 +343,7 @@ MIGRATIONS = {
     "credit_notes": [("company_id", "INTEGER")],
     "order_lines": [("ctn_qty", "TEXT DEFAULT ''")],
     "customer_branches": [("region", "TEXT DEFAULT ''")],
+    "hbl_dcs": [("dc_no", "INTEGER")],
     "po_batches": [("po_excl", "REAL"), ("po_tax", "REAL"), ("po_incl", "REAL")],
     "quotes": [("invoice_id", "INTEGER"), ("customer_email", "TEXT DEFAULT ''")],
     "purchases": [("company_id", "INTEGER")],

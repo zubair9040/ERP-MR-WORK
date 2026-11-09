@@ -51,9 +51,10 @@ def index():
     c = customer()
     custs = q("SELECT id, name FROM customers WHERE active = 1 ORDER BY (name LIKE '%HBL%' OR name LIKE '%Habib%') DESC, name COLLATE NOCASE")
     nb = q("SELECT COUNT(*) AS n FROM customer_branches WHERE customer_id = ?", (c["id"],), one=True)["n"] if c else 0
+    s_next, i_next = _next_billing_numbers()
     pos = q("SELECT b.*, (SELECT COUNT(*) FROM hbl_dcs d WHERE d.batch_id = b.id) AS dcs FROM po_batches b WHERE b.customer_id = ? AND b.void = 0 "
             "AND EXISTS (SELECT 1 FROM hbl_dcs d WHERE d.batch_id = b.id) ORDER BY b.id DESC", (c["id"],)) if c else []
-    return render_template("hbl/index.html", cust=c, custs=custs, branches=nb, pos=pos)
+    return render_template("hbl/index.html", cust=c, custs=custs, branches=nb, pos=pos, next_dc=next_dc(), next_sumno=s_next, next_sinv=i_next)
 
 
 @bp.route("/customer", methods=["POST"])
@@ -78,6 +79,71 @@ def load_branches():
         n += 1
     commit()
     flash(f"{n} HBL branches added.", "ok")
+    return redirect(url_for("hbl.index"))
+
+
+@bp.route("/numbers", methods=["POST"])
+def set_numbers():
+    """Where the DC / summary / sales tax invoice numbers continue from."""
+    for key, field in (("hbl_next_dc", "next_dc"), ("hbl_next_sumno", "next_sumno"), ("hbl_next_sinv", "next_sinv")):
+        v = "".join(ch for ch in request.form.get(field, "") if ch.isdigit())
+        if v:
+            set_setting(key, v)
+    commit()
+    flash("Numbers saved.", "ok")
+    return redirect(url_for("hbl.index"))
+
+
+@bp.route("/record", methods=["POST"])
+def read_record():
+    """Reads your old HBL_RECORD Excel only to continue the numbers (last DC, last summary no, last sales tax invoice no)."""
+    import openpyxl
+    f = request.files.get("record")
+    if not f or not f.filename.lower().endswith((".xlsx", ".xlsm")):
+        flash("Choose the HBL_RECORD .xlsx file.", "err")
+        return redirect(url_for("hbl.index"))
+    wb = openpyxl.load_workbook(f, data_only=True, read_only=True)
+    ws = next((w for w in wb.worksheets if w.title.strip().upper() == "DATA"), None)
+    if not ws:
+        flash("That file has no DATA tab.", "err")
+        return redirect(url_for("hbl.index"))
+    dc = sm = si = 0
+    pos = set()
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if len(row) < 21:
+            continue
+        for v, which in ((row[2], "dc"), (row[19], "sm"), (row[20], "si")):
+            try:
+                n = int(float(str(v).strip()))
+            except (TypeError, ValueError):
+                continue
+            if which == "dc":
+                dc = max(dc, n)
+            elif which == "sm":
+                sm = max(sm, n)
+            else:
+                si = max(si, n)
+        if row[1]:
+            pos.add(str(row[1]))
+    bw = next((w for w in wb.worksheets if w.title.strip().upper() == "BILLINGS"), None)
+    if bw:
+        for row in bw.iter_rows(min_row=2, values_only=True):
+            for v, which in ((row[16] if len(row) > 16 else None, "sm"), (row[17] if len(row) > 17 else None, "si")):
+                try:
+                    n = int(float(str(v).strip()))
+                except (TypeError, ValueError):
+                    continue
+                sm, si = (max(sm, n), si) if which == "sm" else (sm, max(si, n))
+    if dc:
+        set_setting("hbl_next_dc", str(dc + 1))
+    if sm:
+        set_setting("hbl_next_sumno", str(sm + 1))
+    if si:
+        set_setting("hbl_next_sinv", str(si + 1))
+    commit()
+    flash(f"Record read ({len(pos)} PO(s)). Next DC no {dc + 1 if dc else '-'}"
+          + (f", next summary no {sm + 1}" if sm else ", no summary numbers in the record yet")
+          + (f", next sales tax invoice no {si + 1}." if si else ", no sales tax invoice numbers in the record yet."), "ok")
     return redirect(url_for("hbl.index"))
 
 
@@ -121,8 +187,16 @@ def api_lookup():
     return jsonify(NAMES=names, PRICES=prices, ADDR=addr, customer=bool(c))
 
 
+def next_dc():
+    """DC numbers are their own series (continues from the old HBL record); invoice numbers come from the ERP's invoice numbering."""
+    seed = int(settings().get("hbl_next_dc") or 0)
+    m = q("SELECT MAX(dc_no) AS m FROM hbl_dcs", one=True)["m"] or 0
+    return max(seed, m + 1)
+
+
 def _next_billing_numbers(batch_ids=None):
-    s = i = 0
+    s = int(settings().get("hbl_next_sumno") or 1) - 1
+    i = int(settings().get("hbl_next_sinv") or 1) - 1
     for r in q("SELECT sumno, sinv FROM hbl_billings"):
         for v, key in ((r["sumno"], "s"), (r["sinv"], "i")):
             digits = "".join(ch for ch in str(v) if ch.isdigit())
@@ -147,7 +221,7 @@ def api_next():
     c = customer()
     co = c["company_id"] or default_company_id() if c else default_company_id()
     s, i = _next_billing_numbers()
-    return jsonify(next_invoice=next_invoice_number(co), next_summary=s, next_sinv=i)
+    return jsonify(next_invoice=next_invoice_number(co), next_dc=next_dc(), next_summary=s, next_sinv=i)
 
 
 @bp.route("/api/po/<po>")
@@ -158,10 +232,10 @@ def api_po(po):
     if not b or not q("SELECT 1 FROM hbl_dcs WHERE batch_id = ?", (b["id"],)):
         return jsonify(exists=False, next_summary=s, next_sinv=i)
     dcs, bills = [], []
-    for d in q("SELECT d.*, i.number, i.void FROM hbl_dcs d JOIN invoices i ON i.id = d.invoice_id WHERE d.batch_id = ? AND i.void = 0 ORDER BY i.number", (b["id"],)):
+    for d in q("SELECT d.*, i.number, i.void FROM hbl_dcs d JOIN invoices i ON i.id = d.invoice_id WHERE d.batch_id = ? AND i.void = 0 ORDER BY COALESCE(d.dc_no, i.number)", (b["id"],)):
         lines = [{"code": l["code"], "name": l["name"], "unit": l["unit"], "origQty": l["orig_qty"], "qty": l["qty"], "price": l["price"],
                   "tax": l["tax"], "cancelled": bool(l["cancelled"])} for l in q("SELECT * FROM hbl_lines WHERE invoice_id = ? ORDER BY code, id", (d["invoice_id"],))]
-        dcs.append({"dc": d["number"], "inv": d["number"], "req": d["req"], "po": po, "cc": d["cc"], "loc": d["loc"], "person": d["person"],
+        dcs.append({"dc": d["dc_no"] or d["number"], "inv": d["number"], "req": d["req"], "po": po, "cc": d["cc"], "loc": d["loc"], "person": d["person"],
                     "phone": d["phone"], "date": d["date"], "lines": lines, "iid": d["invoice_id"]})
     for bl in q("SELECT * FROM hbl_billings WHERE batch_id = ? ORDER BY id", (b["id"],)):
         byinv = {}
@@ -231,21 +305,25 @@ def api_import():
         req = str(d.get("req") or "")
         if req in have:
             continue
-        br = q("SELECT * FROM customer_branches WHERE customer_id = ? AND code = ? LIMIT 1", (c["id"], str(d.get("cc") or "")), one=True)
+        cc = str(d.get("cc") or "")
+        norm = str(int(cc)) if cc.isdigit() else cc  # the bank writes 0627, the branch list keeps 627
+        br = q("SELECT * FROM customer_branches WHERE customer_id = ? AND code IN (?, ?) LIMIT 1", (c["id"], cc, norm), one=True)
         number = next_invoice_number(co["id"])
+        dc_no = next_dc()
+        set_setting("hbl_next_dc", str(dc_no + 1))
         due = date
         iid = x("""INSERT INTO invoices (number, date, due_date, customer_id, rep_id, notes, tax_rate, subtotal, discount, tax, total, created_by, created_at,
                    company_id, branch_id, batch_id, ref_no, po_no, deliver_to) VALUES (?,?,?,?,?,?,0,0,0,0,0,?,?,?,?,?,?,?,?)""",
                   (number, date, due, c["id"], c["rep_id"], f"HBL PO {po} request {req}", g.user["id"], now(), co["id"],
                    br["id"] if br else None, b["id"], req, po,
                    "\n".join(v for v in (br["name"], br["address"], br["phone"]) if v) if br else str(d.get("loc") or "")))
-        x("INSERT INTO hbl_dcs (invoice_id, batch_id, po_no, req, cc, loc, person, phone, date) VALUES (?,?,?,?,?,?,?,?,?)",
-          (iid, b["id"], po, req, str(d.get("cc") or ""), str(d.get("loc") or ""), str(d.get("person") or ""), str(d.get("phone") or ""), date))
+        x("INSERT INTO hbl_dcs (invoice_id, batch_id, po_no, req, cc, loc, person, phone, date, dc_no) VALUES (?,?,?,?,?,?,?,?,?,?)",
+          (iid, b["id"], po, req, str(d.get("cc") or ""), str(d.get("loc") or ""), str(d.get("person") or ""), str(d.get("phone") or ""), date, dc_no))
         for n, l in enumerate(d.get("lines") or [], start=1):
             x("INSERT INTO hbl_lines (invoice_id, sort, code, name, unit, orig_qty, qty, price, tax, cancelled) VALUES (?,?,?,?,?,?,?,?,?,0)",
               (iid, n, l["code"], l["name"], l["unit"], float(l.get("origQty") or l["qty"]), float(l["qty"]), float(l["price"]), float(l["tax"])))
         _sync_invoice(iid)
-        created.append({"req": req, "dc": number})
+        created.append({"req": req, "dc": dc_no, "inv": number})
     commit()
     return jsonify(ok=True, created=created, skipped=len(j["dcs"]) - len(created), batch_url=url_for("po.view", bid=b["id"]))
 
@@ -277,7 +355,7 @@ def api_bill():
                 (b["id"], po, sumno, sinv, j.get("isn") or "", j.get("date") or today(), g.user["id"], now()))
     n = 0
     for d in j.get("dcs") or []:
-        dc = q("SELECT d.invoice_id FROM hbl_dcs d JOIN invoices i ON i.id = d.invoice_id WHERE d.batch_id = ? AND i.number = ?", (b["id"], int(d["dc"])), one=True)
+        dc = q("SELECT d.invoice_id FROM hbl_dcs d JOIN invoices i ON i.id = d.invoice_id WHERE d.batch_id = ? AND COALESCE(d.dc_no, i.number) = ?", (b["id"], int(d["dc"])), one=True)
         if not dc:
             return jsonify(error=f"DC {d['dc']} is not in this PO."), 400
         iid = dc["invoice_id"]

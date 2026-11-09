@@ -30,6 +30,7 @@ def _setup(app):
     with app.app_context():
         cid = q("SELECT id FROM customers WHERE active = 1 ORDER BY id LIMIT 1", one=True)["id"]
         set_setting("hbl_customer_id", str(cid))
+        set_setting("hbl_next_dc", "56988")
         commit()
     return cid
 
@@ -45,9 +46,10 @@ def test_import_gives_real_invoice_numbers_and_is_repeatable(app):
     r = _post(admin, "/hbl/api/import", body).json
     assert r["ok"] and len(r["created"]) == 2
     nums = [c["dc"] for c in r["created"]]
-    assert nums[1] == nums[0] + 1 and nums[0] > before - 1000
+    invs = [c["inv"] for c in r["created"]]
+    assert nums == [56988, 56989] and invs[1] == invs[0] + 1 and invs[0] > before
     with app.app_context():
-        inv = q("SELECT * FROM invoices WHERE number = ?", (nums[0],), one=True)
+        inv = q("SELECT * FROM invoices WHERE number = ?", (invs[0],), one=True)
         assert inv["subtotal"] == 221250 and inv["tax"] == 39825 and inv["total"] == 261075 and inv["customer_id"] == cid and inv["po_no"] == PO
         assert q("SELECT COUNT(*) AS n FROM invoice_lines WHERE invoice_id = ?", (inv["id"],), one=True)["n"] == 2
         assert q("SELECT batch_id FROM invoices WHERE id = ?", (inv["id"],), one=True)["batch_id"]
@@ -62,6 +64,7 @@ def test_partial_billing_in_parts_keeps_the_invoice_equal_to_what_was_billed(app
     admin = _client(app)
     st = admin.get(f"/hbl/api/po/{PO}").json
     dc1, dc2 = st["dcs"][0]["dc"], st["dcs"][1]["dc"]
+    inv2_no = st["dcs"][1]["inv"]
     line = lambda qty: {"code": "SE00000581", "name": "BALL PEN RED", "unit": "PCS", "qty": qty, "price": 6.48, "tax": 0.18}
     # first summary: DC 1 in full
     r = _post(admin, "/hbl/api/bill", {"po": PO, "date": "2026-11-10", "sumno": "501", "sinv": "9001", "dcs": [
@@ -70,12 +73,12 @@ def test_partial_billing_in_parts_keeps_the_invoice_equal_to_what_was_billed(app
     # second summary: only 120 of the 200 pens on DC 2 (partial)
     assert _post(admin, "/hbl/api/bill", {"po": PO, "date": "2026-11-12", "sumno": "502", "sinv": "9002", "dcs": [{"dc": dc2, "lines": [line(120)]}]}).json["ok"]
     with app.app_context():
-        inv2 = q("SELECT * FROM invoices WHERE number = ?", (dc2,), one=True)
+        inv2 = q("SELECT * FROM invoices WHERE number = ?", (inv2_no,), one=True)
         assert inv2["subtotal"] == 77760 and inv2["total"] == 91757  # 120 x 6.48 = 777.60 + 18%
     # third summary: the remaining 80
     assert _post(admin, "/hbl/api/bill", {"po": PO, "date": "2026-12-01", "sumno": "503", "sinv": "9003", "dcs": [{"dc": dc2, "lines": [line(80)]}]}).json["ok"]
     with app.app_context():
-        inv2 = q("SELECT * FROM invoices WHERE number = ?", (dc2,), one=True)
+        inv2 = q("SELECT * FROM invoices WHERE number = ?", (inv2_no,), one=True)
         assert inv2["subtotal"] == 129600 and inv2["total"] == 152928  # all 200 pens
         assert q("SELECT qty FROM invoice_lines WHERE invoice_id = ?", (inv2["id"],), one=True)["qty"] == 200
     st = admin.get(f"/hbl/api/po/{PO}").json
@@ -99,3 +102,14 @@ def test_hbl_pages_need_back_office_rights(app):
     assert len(look["PRICES"]) > 200
     rep = _client(app, "rizwan", "rizwan123")
     assert rep.get("/hbl/").status_code == 403 and rep.get("/hbl/api/lookup").status_code == 403
+
+
+def test_hbl_invoices_work_with_the_normal_erp_pages(app):
+    _setup(app)
+    admin = _client(app)
+    st = admin.get(f"/hbl/api/po/{PO}").json
+    with app.app_context():
+        inv = q("SELECT id, batch_id FROM invoices WHERE number = ?", (st["dcs"][0]["inv"],), one=True)
+    for url in (f"/po/{inv['batch_id']}", "/po/", f"/invoices/{inv['id']}?summary=1", f"/invoices/{inv['id']}/edit", f"/invoices/{inv['id']}.pdf",
+                f"/invoices/{inv['id']}/dc.pdf", "/invoices"):
+        assert admin.get(url).status_code == 200, url

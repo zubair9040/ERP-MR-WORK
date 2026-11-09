@@ -188,7 +188,7 @@ RULES = {
     "orders.new": ("orders.create", "orders.approve"), "orders.approve": "orders.approve",
     "orders.reject": "orders.approve", "orders.cancel": ("orders.create", "orders.approve"), "orders.count": ("orders.view", "orders.create"),
     "team.time_report": "team.time",
-    "hbl.index": "invoices.edit", "hbl.set_customer": "invoices.edit", "hbl.load_branches": "customers.edit", "hbl.app_page": "invoices.edit",
+    "hbl.index": "invoices.edit", "hbl.set_customer": "invoices.edit", "hbl.set_numbers": "invoices.edit", "hbl.read_record": "invoices.edit", "hbl.load_branches": "customers.edit", "hbl.app_page": "invoices.edit",
     "hbl.api_lookup": "invoices.edit", "hbl.api_pos": "invoices.edit", "hbl.api_next": "invoices.edit", "hbl.api_po": "invoices.edit",
     "hbl.api_import": "invoices.edit", "hbl.api_bill": "invoices.edit", "hbl.items": "items.edit",
     "sales.items": "items.view", "sales.items_set_group": "items.edit", "sales.item_form": "items.edit",

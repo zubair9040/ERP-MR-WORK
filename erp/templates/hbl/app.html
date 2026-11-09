@@ -19,7 +19,7 @@
  <div id="step2" style="display:none">
   <div class="card"><h3>1. Which PO?</h3>
    <div class="row"><label>PO number<select id="po"></select></label>
-   <label>Date on papers<input type="date" id="date"></label><label id="dcw">Next DC / invoice no (from the ERP)<input type="text" id="dc0" size="7" inputmode="numeric" readonly></label><label style="flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:14px"><input type="checkbox" id="cap" checked> Never bill above the PO rate</label></div><div class="tot" id="info"></div><div class="tot" id="warn" style="color:var(--bad)"></div>
+   <label>Date on papers<input type="date" id="date"></label><label id="dcw">Next DC no (from the ERP)<input type="text" id="dc0" size="7" inputmode="numeric" readonly></label><label style="flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:14px"><input type="checkbox" id="cap" checked> Never bill above the PO rate</label></div><div class="tot" id="info"></div><div class="tot" id="warn" style="color:var(--bad)"></div>
   </div>
   <div class="card" id="createcard" style="display:none"><h3>1b. Create in the ERP</h3>
    <div class="tot">These DCs are only a preview. Press the button to create them as <b>real invoices in the ERP</b> (PO batch billing). The ERP gives each branch its real DC / invoice number.</div>
@@ -51,5 +51,5 @@
 <script src="{{ url_for('static', filename='hbl/pdf.min.js') }}"></script>
 <script src="{{ url_for('static', filename='hbl/exceljs.min.js') }}"></script>
 <script src="{{ url_for('static', filename='hbl/poparse.js') }}"></script>
-<script src="{{ url_for('static', filename='hbl/hbl_app.js') }}?v=2"></script>
+<script src="{{ url_for('static', filename='hbl/hbl_app.js') }}?v=4"></script>
 </body></html>
