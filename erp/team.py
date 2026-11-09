@@ -14,6 +14,14 @@ STATUSES = ["To do", "In progress", "Done"]
 PING_EVERY = 30  # seconds between "still active" pings sent by the page
 
 
+@bp.before_request
+def _not_for_locked_logins():
+    """A distributor (login locked to a company) has no team chat, tasks or staff list; only the active-time ping runs."""
+    from .auth import is_locked
+    if g.get("user") and is_locked() and request.endpoint != "team.ping":
+        abort(403)
+
+
 def _users():
     return q("SELECT id, name FROM users WHERE active = 1 ORDER BY name COLLATE NOCASE")
 

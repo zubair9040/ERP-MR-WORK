@@ -3,8 +3,12 @@ const $=id=>document.getElementById(id);
 let NAMES={},PRICES={},ADDR={};const SEED_DC=0;
 const CSRF=(document.querySelector('meta[name=csrf]')||{}).content||'';
 let PREVIEW=false;
+let CO={name:'',address:'',ntn:'',gst:'',lines:[]};
+const coLine=l=>/^WA:/i.test(l)?(WA+' '+esc(l.replace(/^WA:\s*/i,''))):esc(l);
+const coRight=()=>CO.lines.map(coLine).join('<br>');
+const coSlip=()=>CO.lines.map(coLine).join(' &nbsp; ');
 async function api(url,body){const r=await fetch(url,body?{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF':CSRF},body:JSON.stringify(body)}:{credentials:'same-origin'});let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||('Server error '+r.status));return j;}
-const LOGO=location.origin+'/static/hbl/logo.jpg';
+const LOGO=location.origin+'/hbl/logo';
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const FULLMON=['January','February','March','April','May','June','July','August','September','October','November','December'];
 let lines=[],contacts={},byPO={};
@@ -116,7 +120,7 @@ function buildFromPdf(){
   const miss=new Set(),RC={},capOn=$('cap').checked;let ex=0;
   P.rows.forEach(r=>{
     const code=cl(r.item),q=Math.round(Number(r.qty)),pr=PRICES[code],bp=Number(String(r.price).replace(/,/g,''));let name,unit,price,mr=null;
-    if(pr){name=pr[0];unit=pr[1];mr=pr[2];price=mr;if(capOn&&bp>0&&mr>bp)price=bp;}else{miss.add(code);name=cl(r.desc);unit=cl(r.uom);price=bp;}
+    if(pr&&pr[2]>0){name=pr[0];unit=pr[1];mr=pr[2];price=mr;if(capOn&&bp>0&&mr>bp)price=bp;}else{miss.add(code);name=cl(r.desc);unit=cl(r.uom);price=bp;}
     const tx=/(\d+)\s*%/.exec(r.tax||'');const tax=tx?Number(tx[1])/100:0.18;
     map[r.req].lines.push({qty:q,origQty:q,cancelled:false,name,unit,price,tax,code});ex+=q*price;
     if(mr!==null){const k=code+'|'+bp;const e=RC[k]||(RC[k]={code,name,bp,mr,qty:0,uomBad:cl(r.uom)&&unit&&cl(r.uom).toUpperCase()!==unit.toUpperCase()?cl(r.uom)+' vs '+unit:''});e.qty+=q;}
@@ -128,10 +132,10 @@ function buildFromPdf(){
   byPO[po]=P1;POTOT[po]={excl:P.header.excl,tax:P.header.tax,incl:P.header.incl};
   const FIT=capOn?fitToPO(po,P1):[];
   showRates(RC,capOn,FIT);
-  if(miss.size)warn.push('No M.R price found for: '+[...miss].join(', ')+' \u2014 the bank\'s price was used for these. Please check.');
+  if(miss.size)warn.push('No rate set in your HBL item rates (or the rate is 0) for: '+[...miss].join(', ')+' \u2014 the bank\'s price was used for these. Please check.');
   const chk=POPARSE.checkRows(P.header,P.rows);chk.warn.forEach(w=>warn.push('PO PDF: '+w));
   $('warn').innerHTML=warn.map(esc).join('<br>');
-  $('info').textContent='';setupUI(P.rows.length+' lines, '+order.length+' DCs ('+start+' to '+(start+order.length-1)+'). M.R total excl. tax '+fc(ex)+' \u00b7 bank PO total '+(P.header.excl!=null?fc(P.header.excl):'?'));
+  $('info').textContent='';setupUI(P.rows.length+' lines, '+order.length+' DCs ('+start+' to '+(start+order.length-1)+'). Your total excl. tax '+fc(ex)+' \u00b7 bank PO total '+(P.header.excl!=null?fc(P.header.excl):'?'));
 }
 async function loadPdf(file){
   msg('Reading '+file.name+' ...');
@@ -255,7 +259,7 @@ function setAll(v){document.querySelectorAll('.ck').forEach(c=>c.checked=v);upd(
 
 /* ---------- page builders ---------- */
 const WA='<svg viewBox="0 0 24 24" style="width:1.15em;height:1.15em;vertical-align:-.2em"><path fill="#25D366" d="M12 0a12 12 0 0 0-10.3 18L0 24l6.2-1.6A12 12 0 1 0 12 0z"/><path fill="#fff" d="M17.5 14.4c-.3-.15-1.7-.85-2-.95s-.45-.15-.65.15-.75.95-.9 1.15-.35.2-.65.05a7.9 7.9 0 0 1-3.9-3.4c-.3-.5.3-.5.85-1.6.1-.2.05-.35 0-.5s-.65-1.6-.9-2.2-.5-.5-.65-.5h-.55a1.05 1.05 0 0 0-.75.35 3.1 3.1 0 0 0-1 2.3 5.4 5.4 0 0 0 1.1 2.9 12.3 12.3 0 0 0 4.7 4.15c1.75.75 2.45.8 3.3.7a2.8 2.8 0 0 0 1.85-1.3 2.3 2.3 0 0 0 .15-1.3c-.05-.1-.25-.2-.55-.35z"/></svg>';
-const hdr=t=>'<div class="hd">'+(t?'<div class="ttl">'+t+'</div>':'')+'<img src="'+LOGO+'"><div class="co">M.R ENTERPRISES</div><div class="ad">78/ B1 BLOCK-6 PECHS NEAR IMAM AHMED ROAD KARACHI.</div><div class="l">N.T.NO 1433823-8<br>G.S.T.#. 12-00-4817-172-82</div><div class="r">PTCL : 021-34555883<br>MOB : 0300-2760602<br>'+WA+' 0326-2220447</div></div>';
+const hdr=t=>'<div class="hd">'+(t?'<div class="ttl">'+t+'</div>':'')+'<img src="'+LOGO+'" onerror="this.style.display=\'none\'"><div class="co">'+esc(CO.name.toUpperCase())+'</div><div class="ad">'+esc(CO.address)+'</div><div class="l">N.T.NO '+esc(CO.ntn)+'<br>G.S.T.#. '+esc(CO.gst)+'</div><div class="r">'+coRight()+'</div></div>';
 const pg=h=>'<div class="pg">'+h+'</div>';
 const rt=a=>'<div class="rt"><table>'+a.map(x=>'<tr><td class="k">'+x[0]+'</td><td class="v">'+esc(x[1])+'</td></tr>').join('')+'</table></div>';
 const chunk=(a,n)=>{const o=[];for(let i=0;i<a.length;i+=n)o.push(a.slice(i,i+n));return o.length?o:[[]];};
@@ -297,7 +301,7 @@ function invoicePage(S,D,inv){
   let h='<div style="position:absolute;right:12mm;top:12mm;border:1px solid #000;width:32mm;font-size:9pt;text-align:center"><div style="border-bottom:1px solid #000;padding:.8mm">Original</div><div style="padding:.8mm">Duplicate</div></div>'+
    '<div style="text-align:center;margin-top:8mm" class="big">SALES TAX INVOICE</div>'+
    '<div style="display:flex;justify-content:space-between;margin:8mm 0 4mm;font-size:11pt"><span>Serial No: &nbsp;&nbsp;<b><u>MR-'+esc(inv)+'</u></b></span><span>Date: &nbsp;&nbsp;<b><u>'+D.d+'.'+D.m+'.'+D.y+'</u></b></span><span>Time of Supply &nbsp;&nbsp;<u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u></span></div>'+
-   '<div style="display:flex;border:1px solid #000;border-width:2px 2px 2px 2px"><div style="width:50%;border-right:1px solid #000">'+box("Supplier's Name",'M.R. ENTERPRISES',1)+box('&amp;','')+box('Address','78-D BLOCK 6 P.E.C.H.S KARACHI')+box('','')+box('','')+box('Telephone No.','')+box('N.T.N. NO.','1433823-8')+box('ST Reg. No.','12-00-4817-172-82')+'</div><div style="width:50%">'+box("Buyer's Name",'M/S HABIB BANK LTD',1)+box('&amp;','')+box('Address','')+box('','')+box('','')+box('Telephone No.','')+box('N.T.N. NO.','0698187-9')+box('ST Reg. No.','')+'</div></div>'+
+   '<div style="display:flex;border:1px solid #000;border-width:2px 2px 2px 2px"><div style="width:50%;border-right:1px solid #000">'+box("Supplier's Name",CO.name.toUpperCase(),1)+box('&amp;','')+box('Address',CO.address)+box('','')+box('','')+box('Telephone No.','')+box('N.T.N. NO.',CO.ntn)+box('ST Reg. No.',CO.gst)+'</div><div style="width:50%">'+box("Buyer's Name",'M/S HABIB BANK LTD',1)+box('&amp;','')+box('Address','')+box('','')+box('','')+box('Telephone No.','')+box('N.T.N. NO.','0698187-9')+box('ST Reg. No.','')+'</div></div>'+
    '<div style="margin:5mm 0 3mm;font-size:10pt">Terms of Sale: <u>&nbsp;'.concat(' '.repeat(0),'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u></div>')+
    '<table class="t" style="margin-top:2mm"><thead><tr><th style="width:15%;font-size:9pt">Quantity</th><th style="font-size:9pt">Description of Goods</th><th style="width:8%;font-size:9pt">Unit<br>Price</th><th style="width:12%;font-size:8.5pt">Value<br>Excluding<br>Sales Tax</th><th style="width:11%;font-size:8.5pt">S/Tax at<br>Standard<br>Rate of @</th><th style="width:11%;font-size:8.5pt">Total Sales<br>Tax<br>Payable</th><th style="width:12%;font-size:8.5pt">Value<br>Including<br>Sales Tax</th></tr><tr><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th></tr></thead><tbody>'+
    '<tr><td class="c" style="height:6.4mm;font-size:10pt">1 LOT</td><td class="c" style="font-size:10pt">STATIONERY ITEMS</td><td></td><td class="c" style="font-size:10pt">'+f2(e)+'</td><td class="c" style="font-size:10pt">18%</td><td class="c" style="font-size:10pt">'+f2(g)+'</td><td class="c" style="font-size:10pt">'+f2(e+g)+'</td></tr>'+rows+
@@ -309,7 +313,7 @@ function undertakingPage(S,D,no,inv){
   const h=hdr('')+'<div style="margin-top:12mm;font-weight:bold;font-size:10pt;line-height:1.5">To,<br>Finance Department<br>Habib Bank Limited,<br>Pakistan.</div><div style="text-align:center;font-weight:bold;text-decoration:underline;font-size:11pt;margin:10mm 0 8mm">UNDERTAKING</div>'+
    '<div style="font-weight:bold;text-decoration:underline;font-size:10pt;line-height:1.6">Invoice No. '+esc(no)+'<br>GST Inv No. MR-'+esc(inv)+'<br>Dated: '+D.d+'. '+D.full+' '+D.y+'<br>Amount: '+f2(n)+'</div>'+
    '<div style="font-size:10pt;line-height:1.55;margin-top:12mm;text-align:justify"><p>Dear Sir,</p><p style="margin-top:6mm">This is to confirm that the supplies made to you against your Purchase Order were imported by us as &ldquo;Commercial Importer&rdquo; and income tax has already been collected by the Government of Pakistan at import stage under section 148 of Income Tax Ordinance 2001. In accordance with the exemption available vide SRO No.97 (1)/2002 dated 12 February 2002, and under clause 47A part 4 2<sup>nd</sup> schedule of Income Tax Ordinance 2001, no further tax under Section 153 of Income Tax Ordinance 2001 Should be deducted from the payment made to us against these supplies.</p><p style="margin-top:5mm">Accordingly, we request you not to deduct withholding tax from payment made by you against the supplies made by us.</p><p style="margin-top:5mm">In case of any objection or demand by the tax authorities resulting from your compliance with our above request, we hereby undertake to pay you the withholding tax plus incidental liabilities that you may holding liable to pay to the Government.</p><p style="margin-top:5mm">Check FBR Link: http://www.fbr.gov.pk/new dt/sros/2002sro97it.htm</p></div>'+
-   '<div style="position:absolute;left:12mm;bottom:55mm;font-size:10pt;line-height:1.7">Thanking You,<br>With Best Regards,<br><br><br>For M.R. Enterprises</div>';
+   '<div style="position:absolute;left:12mm;bottom:55mm;font-size:10pt;line-height:1.7">Thanking You,<br>With Best Regards,<br><br><br>For '+esc(CO.name)+'</div>';
   return [pg(h)];
 }
 function itemPages(S,D,po,isn){
@@ -335,7 +339,7 @@ function slipPage(d,st){
   const addr=A&&A[2]?A[2]:d.loc,bn=d.loc,no=A&&A[3]&&A[3]!=='-'?A[3]:'',reg=A?A[1]:'',per=ct.person||'',ph=ct.phone||'';
   const L=addr.length,f=st===3?0.82:1,asz=Math.round((L<=60?31:L<=100?26:L<=150?22:18)*f)+'pt',bsz=bn.length<=45?'16pt':bn.length<=80?'13pt':'11pt';
   const lab=(t,sz)=>'<div style="font-size:'+(sz||'9pt')+';font-weight:bold;letter-spacing:.5pt">'+t+'</div>';
-  const from='<div style="font-size:8pt;text-align:center;border-top:1.5px solid #000;padding:1mm 2mm;font-weight:bold">FROM: M.R ENTERPRISES, 78/ B1 BLOCK-6 PECHS NEAR IMAM AHMED ROAD KARACHI. &nbsp; PTCL: 021-34555883 &nbsp; MOB: 0300-2760602 &nbsp; '+WA+' 0326-2220447</div>';
+  const from='<div style="font-size:8pt;text-align:center;border-top:1.5px solid #000;padding:1mm 2mm;font-weight:bold">FROM: '+esc(CO.name.toUpperCase())+', '+esc(CO.address)+' &nbsp; '+coSlip()+'</div>';
   const box='border:1.5px solid #000;';let h='';
   if(st===0){ /* original slip */
     const row=(k2,v,sz)=>'<div class="r"><span class="k">'+k2+'</span><span class="v"'+(sz?' style="font-size:'+sz+'"':'')+'>'+esc(v)+'</span></div>';
@@ -343,7 +347,7 @@ function slipPage(d,st){
      row('BRANCH ADDRESS:',addr,addr.length<=70?'19pt':addr.length<=110?'16pt':addr.length<=160?'14pt':'12pt')+row('BRANCH NAME:',bn,bn.length>70?'11pt':'13pt')+row('BRANCH NO:',no)+row('REGION:',reg,'16pt')+
      '<div style="flex:1;display:flex;min-height:0"><div style="flex:1.5;padding:2mm 3mm;display:flex;flex-direction:column;justify-content:space-around"><div style="font-size:15pt">NAME / DEPARTMENT:</div><div style="font-size:15pt;text-decoration:underline;padding-left:6mm">'+esc(per)+'</div><div style="font-size:15pt">CONTACT:</div><div style="font-size:15pt;text-decoration:underline;padding-left:6mm">'+esc(ph)+'</div></div>'+
      '<div style="flex:1;border-left:1.5px solid #000;display:flex;flex-direction:column;text-align:center"><div style="flex:1;border-bottom:1.5px solid #000;display:flex;flex-direction:column;justify-content:center"><div style="font-size:14pt">Branch Code</div><div style="font-size:24pt">'+esc(d.cc)+'</div></div><div style="flex:1;display:flex;flex-direction:column;justify-content:center"><div style="font-size:14pt">DC NO.</div><div style="font-size:24pt">'+d.dc+'</div></div></div></div>'+
-     '<div style="border-top:1.5px solid #000;padding:1mm 3mm;font-size:8pt;text-align:center">FROM: M.R ENTERPRISES, 78/ B1 BLOCK-6 PECHS NEAR IMAM AHMED ROAD KARACHI. &nbsp; PTCL: 021-34555883 &nbsp; MOB: 0300-2760602 &nbsp; '+WA+' 0326-2220447</div></div>';
+     '<div style="border-top:1.5px solid #000;padding:1mm 3mm;font-size:8pt;text-align:center">FROM: '+esc(CO.name.toUpperCase())+', '+esc(CO.address)+' &nbsp; '+coSlip()+'</div></div>';
   }else if(st===1){ /* classic, big address */
     h='<div class="slb" style="font-weight:bold"><div style="text-align:center;font-size:24pt;font-style:italic;text-decoration:underline;padding:1.5mm;border-bottom:1.5px solid #000">M/S HBL</div>'+
      '<div style="flex:1;border-bottom:1.5px solid #000;padding:2mm 4mm;display:flex;flex-direction:column;justify-content:center">'+lab('BRANCH ADDRESS:')+'<div style="font-size:'+asz+';line-height:1.15;text-align:center;font-weight:900;margin-top:1mm">'+esc(addr)+'</div></div>'+
@@ -367,7 +371,7 @@ function openPrint(){
   const html=$('pages').innerHTML,css='<link rel="stylesheet" href="'+location.origin+'/static/hbl/hbl.css">'+[...document.querySelectorAll('style')].map(x=>x.outerHTML).join('');
   const w=window.open('','_blank');
   if(!w){msg('The browser blocked the new print window. Allow pop-ups for this file, then press Print again.',true);return;}
-  w.document.open();w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>M.R Enterprises - print</title>'+css+'<style>body{background:#fff!important;margin:0}#pages{display:block!important}@media screen{.pg{margin:8px auto;box-shadow:0 0 4px #888}}</style></head><body><div id="pages">'+html+'</div></body></html>');
+  w.document.open();w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(CO.name)+' - print</title>'+css+'<style>body{background:#fff!important;margin:0}#pages{display:block!important}@media screen{.pg{margin:8px auto;box-shadow:0 0 4px #888}}</style></head><body><div id="pages">'+html+'</div></body></html>');
   w.document.close();
   try{w.focus();}catch(e){}
 }
@@ -472,11 +476,13 @@ window.__t={sel,fillDC,slipPage,dcList};
 
 (async function init(){
   try{
-    const L=await api('/hbl/api/lookup');NAMES=L.NAMES;PRICES=L.PRICES;ADDR=L.ADDR;
+    const L=await api('/hbl/api/lookup');NAMES=L.NAMES;PRICES=L.PRICES;ADDR=L.ADDR;CO=L.company;
     if(!L.customer){msg('Choose the HBL customer on the "HBL PO pack" page first.',true);return;}
     const ps=await api('/hbl/api/pos');
     if(ps.pos.length){const s=$('po');s.innerHTML='';ps.pos.forEach(p=>{const o=document.createElement('option');o.value=o.textContent=p;s.appendChild(o);});
       $('date').value=new Date().toISOString().slice(0,10);$('step2').style.display='block';await loadServerPO(ps.pos[ps.pos.length-1]);msg('Saved POs are listed. Drop a new PO PDF to bill a new one.');}
   }catch(e){msg(e.message,true);}
 })();
+
+try{const sendH=()=>parent.postMessage({hbl_h:document.documentElement.scrollHeight},'*');new ResizeObserver(sendH).observe(document.body);sendH();}catch(e){}
 })();

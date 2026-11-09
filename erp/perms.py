@@ -90,6 +90,10 @@ def seed(con):
         if not set(EVERYTHING) <= have:
             con.execute("UPDATE roles SET perms = ? WHERE id = ?", (json.dumps(sorted(have | set(EVERYTHING))), adm[0]))
     _grant_new(con)
+    if not con.execute("SELECT 1 FROM roles WHERE name = 'Distributor (HBL billing)'").fetchone():
+        con.execute("INSERT INTO roles (name, description, perms, builtin, sort) VALUES (?,?,?,1,50)",
+                    ("Distributor (HBL billing)", "For a local distributor: PO batch billing and the HBL PO pack for its own company only. Lock the login to its company on the user screen.",
+                     json.dumps(sorted(["customers.view", "invoices.view", "invoices.edit"]))))
     for legacy, name in LEGACY.items():
         rid = con.execute("SELECT id FROM roles WHERE name = ?", (name,)).fetchone()
         if rid:

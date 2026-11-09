@@ -395,3 +395,10 @@ Menu: **Sales → HBL PO pack**. It is your "HBL PO to Bill Pack" tool, now conn
 3. **Partial billing:** tick only the DCs for this summary. Untick a line, or lower a quantity, to bill part of a DC. Type a new **Summary no** and **Sales tax invoice no**; the ERP suggests the next ones and refuses a number that is already used.
 4. **Print:** summary, sales tax invoice, undertaking, item summary, bills, DCs and address slips are made exactly as in the old tool. The billing is saved in the ERP; the rest of the PO can be billed later with new numbers.
 5. The ERP invoice of each DC always equals **what has been billed so far**. Before the first billing it shows the full PO quantity.
+
+### HBL PO pack: where it is, and distributors
+
+- It sits at the top of **PO batch billing**, only for a company where an admin ticked **HBL PO pack** under *Admin → Companies*. Other companies never see it.
+- **Setup** (link on that panel): the bank's head-office customer of that company, the numbers to continue from, the branch list. **HBL item rates** are per company: our rates are not copied to a distributor, it sets its own.
+- Every printed page uses **that company's own name, address, NTN/GST, phone and logo**.
+- **A distributor login:** on *Users* tick the company under *Lock this login to company* and give the role **Distributor (HBL billing)**. That login only ever sees its own company, has no team chat / tasks, and cannot be an admin. Its work shows in the **Audit log** (with the company), and the **Staff time** report counts its active time.

@@ -8,7 +8,7 @@
 
 <div class="wrap noprint">
  <h1>HBL PO to Bill Pack</h1>
- <p class="sub">M.R. Enterprises &mdash; drop the PO PDF and get the Summary, Sales Tax Invoice, Undertaking, Item Summary, and every Bill and Delivery Challan, ready to print.</p>
+ <p class="sub">{{ company.name }} &mdash; drop the PO PDF and get the Summary, Sales Tax Invoice, Undertaking, Item Summary, and every Bill and Delivery Challan, ready to print.</p>
  <div id="drop">
   <div class="big">Drop the PO PDF here</div>
   <div class="small">the HBL purchase order PDF. The DCs and invoices get their real numbers from the ERP.</div>
@@ -51,5 +51,5 @@
 <script src="{{ url_for('static', filename='hbl/pdf.min.js') }}"></script>
 <script src="{{ url_for('static', filename='hbl/exceljs.min.js') }}"></script>
 <script src="{{ url_for('static', filename='hbl/poparse.js') }}"></script>
-<script src="{{ url_for('static', filename='hbl/hbl_app.js') }}?v=4"></script>
+<script src="{{ url_for('static', filename='hbl/hbl_app.js') }}?v=6"></script>
 </body></html>

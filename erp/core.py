@@ -411,19 +411,23 @@ def user_form(uid=None):
             flash("This role only sees the rep's own customers, so the login must be linked to a sales rep.", "err")
         elif (not u or pw) and len(pw) < 8:
             flash("Password must be at least 8 characters.", "err")
+        elif f.getlist("company_ids") and any(p.startswith("admin.") or p == "approve.voids" for p in perms):
+            flash("A login locked to a company can't have an admin role.", "err")
         elif u and u["id"] == g.user["id"] and ("admin.users" not in perms or not f.get("active")):
             flash("You can't remove your own access to Users & roles.", "err")
         else:
             try:
                 legacy = _legacy_role(perms)
                 if u:
-                    x("UPDATE users SET username=?, name=?, role=?, role_id=?, rep_id=?, active=? WHERE id=?",
-                      (f["username"].strip(), f["name"].strip(), legacy, role["id"], rep_id, 1 if f.get("active") else 0, uid))
+                    x("UPDATE users SET username=?, name=?, role=?, role_id=?, rep_id=?, active=?, company_ids=? WHERE id=?",
+                      (f["username"].strip(), f["name"].strip(), legacy, role["id"], rep_id, 1 if f.get("active") else 0,
+                       ",".join(i for i in f.getlist("company_ids") if i.isdigit()), uid))
                     if pw:
                         x("UPDATE users SET password_hash=? WHERE id=?", (generate_password_hash(pw), uid))
                 else:
-                    x("INSERT INTO users (username, name, password_hash, role, role_id, rep_id, created_at) VALUES (?,?,?,?,?,?,?)",
-                      (f["username"].strip(), f["name"].strip(), generate_password_hash(pw), legacy, role["id"], rep_id, now()))
+                    x("INSERT INTO users (username, name, password_hash, role, role_id, rep_id, created_at, company_ids) VALUES (?,?,?,?,?,?,?,?)",
+                      (f["username"].strip(), f["name"].strip(), generate_password_hash(pw), legacy, role["id"], rep_id, now(),
+                       ",".join(i for i in f.getlist("company_ids") if i.isdigit())))
                 commit()
                 flash("User saved.", "ok")
                 return redirect(url_for("core.users"))
@@ -431,6 +435,8 @@ def user_form(uid=None):
                 flash("That username is already taken.", "err")
     cur_role = (u["role_id"] if u else None) or request.form.get("role_id", type=int)
     return render_template("user_form.html", u=u, reps=reps, roles=all_roles, cur_role=cur_role,
+                           cos=q("SELECT id, name FROM companies WHERE active = 1 ORDER BY sort, id"),
+                           my_cos={int(i) for i in ((u["company_ids"] if u else "") or "").split(",") if i.isdigit()},
                            role_perms={r["id"]: json.loads(r["perms"]) for r in all_roles})
 
 
@@ -498,5 +504,5 @@ def audit_log():
     if who:
         where += " AND user_name LIKE ?"
         args.append(f"%{who}%")
-    rows = q(f"SELECT * FROM audit_log {where} ORDER BY id DESC LIMIT 500", args)
+    rows = q(f"SELECT a.*, c.name AS company FROM audit_log a LEFT JOIN companies c ON c.id = a.company_id {where.replace('user_name', 'a.user_name')} ORDER BY a.id DESC LIMIT 500", args)
     return render_template("audit.html", rows=rows, who=who)

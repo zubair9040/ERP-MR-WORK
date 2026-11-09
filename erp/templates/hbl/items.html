@@ -2,7 +2,7 @@
 {% block title %}HBL item rates{% endblock %}
 {% block content %}
 <form method="post" class="card">{{ csrf_field() }}
-  <p class="muted">The bank's item code (SE…), your name for it, the unit and your selling rate. New POs are billed at these rates (never above the PO rate when the cap is on).</p>
+  <p class="muted"><b>{{ company.name }}</b> &mdash; the bank's item code (SE…), your name for it, the unit and your selling rate. New POs are billed at these rates (never above the PO rate when the cap is on).</p>
   <div class="tablewrap"><table>
     <tr><th>Code</th><th>Name</th><th>Unit</th><th class="n">Rate</th></tr>
     <tr><td><input name="new_code" placeholder="new code"></td><td><input name="new_name" placeholder="name"></td><td><input name="new_unit" value="PCS" size="5"></td><td><input name="new_price" size="9"></td></tr>

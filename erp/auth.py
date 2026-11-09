@@ -67,10 +67,29 @@ def is_rep():
     return bool(g.get("user")) and has("scope.own_customers")
 
 
+def allowed_companies():
+    """Company ids this login is locked to (a distributor). Empty = may use every company."""
+    u = g.get("user")
+    if not u:
+        return set()
+    try:
+        ids = u["company_ids"] or ""
+    except (IndexError, KeyError):
+        ids = ""
+    return {int(i) for i in str(ids).split(",") if i.strip().isdigit()}
+
+
+def is_locked():
+    return bool(allowed_companies())
+
+
 def current_company():
-    """The company picked in the company bar (id), or None for 'All companies'."""
+    """The company picked in the company bar (id), or None for 'All companies'. A locked login always gets its own company."""
     if "co_id" not in g:
         cid = session.get("co")
+        allowed = allowed_companies()
+        if allowed and cid not in allowed:
+            cid = min(allowed)
         ok = cid and q("SELECT 1 FROM companies WHERE id = ? AND active = 1", (cid,))
         g.co_id = cid if ok else None
     return g.co_id
@@ -98,6 +117,8 @@ def co_filter(col):
 def check_customer_access(customer):
     if customer is None:
         abort(404)
+    if is_locked() and customer["company_id"] not in allowed_companies():
+        abort(403)
     if is_rep() and customer["rep_id"] != g.user["rep_id"]:
         abort(403)
     return customer

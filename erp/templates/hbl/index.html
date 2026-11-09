@@ -1,20 +1,24 @@
 {% extends "base.html" %}
-{% block title %}HBL PO pack{% endblock %}
-{% block actions %}<a class="btn light" href="{{ url_for('hbl.items') }}">HBL item rates</a>{% endblock %}
+{% block title %}HBL setup{% endblock %}
+{% block actions %}<a class="btn light" href="{{ url_for('po.index') }}">Back to PO batch billing</a>{% if company %}<a class="btn light" href="{{ url_for('hbl.items') }}">HBL item rates</a>{% endif %}{% endblock %}
 {% block content %}
+{% if not company %}
+<div class="card"><h3>HBL PO pack</h3><p>The HBL PO pack is not switched on for this company. An admin can switch it on under <b>Admin &rarr; Companies</b>.</p></div>
+{% else %}
 <div class="card">
-  <h3>1. The HBL customer</h3>
+  <h3>HBL PO pack for {{ company.name }}</h3>
+  <p class="muted">Drop the bank's PO PDF in <a href="{{ url_for('po.index') }}">PO batch billing</a>. Set up once here: the bank's head-office customer, the numbers to continue from, and the branch list.</p>
   <form method="post" action="{{ url_for('hbl.set_customer') }}" class="rowform">{{ csrf_field() }}
-    <select name="customer_id" class="combo"><option value="">— choose the HBL head-office customer —</option>
-      {% for c in custs %}<option value="{{ c.id }}" {{ 'selected' if cust and cust.id == c.id }}>{{ c.name }}</option>{% endfor %}</select>
+    <label>HBL head-office customer (of this company)<select name="customer_id" class="combo"><option value="">— choose —</option>
+      {% for c in custs %}<option value="{{ c.id }}" {{ 'selected' if cust and cust.id == c.id }}>{{ c.name }}</option>{% endfor %}</select></label>
     <button class="btn alt small">Save</button></form>
   {% if cust %}<p class="muted">Branches loaded for {{ cust.name }}: <b>{{ branches }}</b>.
     {% if branches < 100 %}<form method="post" action="{{ url_for('hbl.load_branches') }}" style="display:inline">{{ csrf_field() }}<button class="btn light small">Load the bank's branch list (about 2,400 branches with addresses)</button></form>{% endif %}</p>{% endif %}
 </div>
 {% if cust %}
 <div class="card">
-  <h3>2. Numbers</h3>
-  <p class="muted">DC numbers are their own series. Invoice numbers come from the ERP's invoice numbering (the next one is shown on the pack page).</p>
+  <h3>Numbers</h3>
+  <p class="muted">DC numbers are their own series. Invoice numbers come from this company's invoice numbering in the ERP.</p>
   <form method="post" action="{{ url_for('hbl.set_numbers') }}" class="rowform">{{ csrf_field() }}
     <label>Next DC no<input name="next_dc" value="{{ next_dc }}" size="8"></label>
     <label>Next summary no<input name="next_sumno" value="{{ next_sumno }}" size="8"></label>
@@ -25,14 +29,11 @@
     <button class="btn light small">Read record</button></form>
 </div>
 <div class="card">
-  <h3>3. Bills already made in the ERP</h3>
+  <h3>Bills already made in the ERP</h3>
   <table><tr><th>PO</th><th>DCs / invoices</th><th></th></tr>
     {% for b in pos %}<tr><td><b>{{ b.po_no }}</b></td><td>{{ b.dcs }}</td><td><a href="{{ url_for('po.view', bid=b.id) }}">Open in PO batch billing</a></td></tr>
-    {% else %}<tr><td colspan="3" class="muted">No HBL PO has been created yet. Drop the first PO PDF below.</td></tr>{% endfor %}</table>
+    {% else %}<tr><td colspan="3" class="muted">No HBL PO has been created yet.</td></tr>{% endfor %}</table>
 </div>
-<div class="card" style="padding:0;overflow:hidden">
-  <iframe id="hblframe" src="{{ url_for('hbl.app_page') }}" style="width:100%;height:1500px;border:0" title="HBL PO to Bill Pack"></iframe>
-</div>
-<p class="muted"><a href="{{ url_for('hbl.app_page') }}" target="_blank">Open the pack tool in its own window</a> (better for printing).</p>
+{% endif %}
 {% endif %}
 {% endblock %}

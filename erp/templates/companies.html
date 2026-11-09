@@ -6,6 +6,8 @@
     <label class="wide">Company name (as printed)<input name="name" value="{{ c.name if c else '' }}" required></label>
     <label>Short code (for the company bar)<input name="code" value="{{ c.code if c else '' }}" required maxlength="12" placeholder="TF, MRE1…"></label>
     <label>Colour<input type="color" name="color" value="{{ c.color if c else '#6366f1' }}" style="height:42px;padding:4px"></label>
+    <label class="check wide"><input type="checkbox" name="hbl_enabled" value="1" {{ 'checked' if c and c.hbl_enabled }}> HBL PO pack is switched on for this company (shows in PO batch billing; the bank's PO PDF makes the branch bills, DCs and summary pack)</label>
+    <label class="wide">Extra contact lines printed on HBL documents (one per line, e.g. PTCL: 021-3455…, MOB: 0300-…, WA: 0326-…)<textarea name="hbl_lines" rows="2">{{ c.hbl_lines if c else '' }}</textarea></label>
     <label class="check wide"><input type="checkbox" name="gst_registered" value="1" {{ 'checked' if c and c.gst_registered }}> GST registered (sales tax is charged on its invoices)</label>
     <label>NTN<input name="ntn" value="{{ c.ntn if c else '' }}"></label>
     <label>GST / STRN number<input name="gst_no" value="{{ c.gst_no if c else '' }}"></label>

@@ -9,7 +9,8 @@ from decimal import Decimal
 
 from flask import Blueprint, abort, flash, g, jsonify, redirect, render_template, request, url_for
 
-from .companies import default_company_id, get_company, next_invoice_number
+from .auth import current_company
+from .companies import co_images, default_company_id, get_company, next_invoice_number
 from .db import commit, now, q, rnd, set_setting, settings, today, x
 
 bp = Blueprint("hbl", __name__, url_prefix="/hbl")
@@ -21,18 +22,52 @@ def _dec(v):
     return Decimal(repr(float(v or 0)))
 
 
-def ensure_items():
-    if q("SELECT 1 FROM hbl_items LIMIT 1"):
+def co():
+    """The company the HBL pack works for: the one picked in the company bar (a distributor is locked to its own).
+    None when HBL is not switched on for it. On 'All companies' the first company with HBL switched on is used."""
+    cid = current_company()
+    if cid:
+        c = get_company(cid)
+        return c if c and c["hbl_enabled"] else None
+    return q("SELECT * FROM companies WHERE active = 1 AND hbl_enabled = 1 ORDER BY sort, id LIMIT 1", one=True)
+
+
+@bp.before_request
+def _needs_company():
+    if request.endpoint in ("hbl.index", "hbl.items") or not g.get("user"):
+        return None
+    if not co():
+        abort(403, "The HBL PO pack is not switched on for this company.")
+
+
+def _key(name, c=None):
+    return f"{name}_c{(c or co())['id']}"
+
+
+def ensure_items(c=None):
+    """Each company has its own HBL item list and rates. Only our own company (the first one) gets our rates copied in;
+    every other company (a distributor) starts with the item codes and names at rate 0 and sets its own."""
+    c = c or co()
+    if not c or q("SELECT 1 FROM hbl_company_items WHERE company_id = ? LIMIT 1", (c["id"],)):
         return
+    first = c["id"] == q("SELECT id FROM companies WHERE active = 1 ORDER BY sort, id LIMIT 1", one=True)["id"]  # our own company
     seed = json.load(open(SEED, encoding="utf-8"))
     for code, (name, unit, price) in seed["PRICES"].items():
-        x("INSERT OR IGNORE INTO hbl_items (code, name, unit, price) VALUES (?,?,?,?)", (code, name, unit or "PCS", price))
+        x("INSERT OR IGNORE INTO hbl_company_items (company_id, code, name, unit, price) VALUES (?,?,?,?,?)", (c["id"], code, name, unit or "PCS", price if first else 0.0))
     commit()
 
 
 def customer():
-    cid = settings().get("hbl_customer_id")
-    return q("SELECT * FROM customers WHERE id = ?", (cid,), one=True) if cid else None
+    c = co()
+    return q("SELECT * FROM customers WHERE id = ?", (c["hbl_customer_id"],), one=True) if c and c["hbl_customer_id"] else None
+
+
+def branding(c):
+    """The company's own name, address and numbers for every printed page (never another company's)."""
+    lines = [c["phone"]] if c["phone"] else []
+    lines += [l.strip() for l in (c["hbl_lines"] or "").splitlines() if l.strip()]
+    return {"name": c["name"], "address": (c["address"] or "").replace("\n", ", "), "ntn": c["ntn"] or "", "gst": c["gst_no"] or "", "lines": lines,
+            "city": ""}
 
 
 def _batch(po, c, create=False):
@@ -47,19 +82,25 @@ def _batch(po, c, create=False):
 # ---- pages ---------------------------------------------------------------------------------
 @bp.route("/")
 def index():
+    company = co()
+    if not company:
+        return render_template("hbl/index.html", company=None, cust=None, custs=[], branches=0, pos=[], next_dc="", next_sumno="", next_sinv="")
     ensure_items()
     c = customer()
-    custs = q("SELECT id, name FROM customers WHERE active = 1 ORDER BY (name LIKE '%HBL%' OR name LIKE '%Habib%') DESC, name COLLATE NOCASE")
+    custs = q("SELECT id, name FROM customers WHERE active = 1 AND company_id = ? ORDER BY (name LIKE '%HBL%' OR name LIKE '%Habib%') DESC, name COLLATE NOCASE", (company["id"],))
     nb = q("SELECT COUNT(*) AS n FROM customer_branches WHERE customer_id = ?", (c["id"],), one=True)["n"] if c else 0
     s_next, i_next = _next_billing_numbers()
     pos = q("SELECT b.*, (SELECT COUNT(*) FROM hbl_dcs d WHERE d.batch_id = b.id) AS dcs FROM po_batches b WHERE b.customer_id = ? AND b.void = 0 "
             "AND EXISTS (SELECT 1 FROM hbl_dcs d WHERE d.batch_id = b.id) ORDER BY b.id DESC", (c["id"],)) if c else []
-    return render_template("hbl/index.html", cust=c, custs=custs, branches=nb, pos=pos, next_dc=next_dc(), next_sumno=s_next, next_sinv=i_next)
+    return render_template("hbl/index.html", company=company, cust=c, custs=custs, branches=nb, pos=pos, next_dc=next_dc(), next_sumno=s_next, next_sinv=i_next)
 
 
 @bp.route("/customer", methods=["POST"])
 def set_customer():
-    set_setting("hbl_customer_id", request.form.get("customer_id", ""))
+    cid = request.form.get("customer_id", type=int)
+    company = co()
+    if cid and q("SELECT 1 FROM customers WHERE id = ? AND company_id = ?", (cid, company["id"])):
+        x("UPDATE companies SET hbl_customer_id = ? WHERE id = ?", (cid, company["id"]))
     commit()
     return redirect(url_for("hbl.index"))
 
@@ -88,7 +129,7 @@ def set_numbers():
     for key, field in (("hbl_next_dc", "next_dc"), ("hbl_next_sumno", "next_sumno"), ("hbl_next_sinv", "next_sinv")):
         v = "".join(ch for ch in request.form.get(field, "") if ch.isdigit())
         if v:
-            set_setting(key, v)
+            set_setting(_key(key), v)
     commit()
     flash("Numbers saved.", "ok")
     return redirect(url_for("hbl.index"))
@@ -135,11 +176,11 @@ def read_record():
                     continue
                 sm, si = (max(sm, n), si) if which == "sm" else (sm, max(si, n))
     if dc:
-        set_setting("hbl_next_dc", str(dc + 1))
+        set_setting(_key("hbl_next_dc"), str(dc + 1))
     if sm:
-        set_setting("hbl_next_sumno", str(sm + 1))
+        set_setting(_key("hbl_next_sumno"), str(sm + 1))
     if si:
-        set_setting("hbl_next_sinv", str(si + 1))
+        set_setting(_key("hbl_next_sinv"), str(si + 1))
     commit()
     flash(f"Record read ({len(pos)} PO(s)). Next DC no {dc + 1 if dc else '-'}"
           + (f", next summary no {sm + 1}" if sm else ", no summary numbers in the record yet")
@@ -150,33 +191,45 @@ def read_record():
 @bp.route("/app")
 def app_page():
     ensure_items()
-    return render_template("hbl/app.html", cust=customer())
+    return render_template("hbl/app.html", cust=customer(), company=co())
 
 
 @bp.route("/items", methods=["GET", "POST"])
 def items():
+    company = co() or abort(403, "The HBL PO pack is not switched on for this company.")
     ensure_items()
     if request.method == "POST":
         f = request.form
         if f.get("new_code", "").strip():
-            x("INSERT OR REPLACE INTO hbl_items (code, name, unit, price, active) VALUES (?,?,?,?,1)",
-              (f["new_code"].strip().upper(), f.get("new_name", "").strip(), f.get("new_unit", "PCS").strip() or "PCS", float(f.get("new_price") or 0)))
+            x("INSERT OR REPLACE INTO hbl_company_items (company_id, code, name, unit, price, active) VALUES (?,?,?,?,?,1)",
+              (company["id"], f["new_code"].strip().upper(), f.get("new_name", "").strip(), f.get("new_unit", "PCS").strip() or "PCS", float(f.get("new_price") or 0)))
         for code in f.getlist("code"):
-            x("UPDATE hbl_items SET name = ?, unit = ?, price = ? WHERE code = ?",
-              (f.get("name_" + code, "").strip(), f.get("unit_" + code, "PCS").strip(), float(f.get("price_" + code) or 0), code))
+            x("UPDATE hbl_company_items SET name = ?, unit = ?, price = ? WHERE company_id = ? AND code = ?",
+              (f.get("name_" + code, "").strip(), f.get("unit_" + code, "PCS").strip(), float(f.get("price_" + code) or 0), company["id"], code))
         commit()
         flash("HBL item rates saved.", "ok")
         return redirect(url_for("hbl.items"))
-    return render_template("hbl/items.html", rows=q("SELECT * FROM hbl_items ORDER BY code"))
+    return render_template("hbl/items.html", rows=q("SELECT * FROM hbl_company_items WHERE company_id = ? ORDER BY code", (company["id"],)), company=company)
+
+
+@bp.route("/logo")
+def logo():
+    from flask import send_file
+    p = co_images(co()["id"]).get("logo")
+    if not p:
+        abort(404)
+    return send_file(p)
 
 
 # ---- API for the pack page -----------------------------------------------------------------
 @bp.route("/api/lookup")
 def api_lookup():
     c = customer()
+    company = co()
+    ensure_items()
     names, prices = {}, {}
     seed_names = json.load(open(SEED, encoding="utf-8"))["NAMES"]
-    for r in q("SELECT * FROM hbl_items WHERE active = 1"):
+    for r in q("SELECT * FROM hbl_company_items WHERE company_id = ? AND active = 1", (company["id"],)):
         prices[r["code"]] = [r["name"], r["unit"], r["price"]]
     for code, v in seed_names.items():
         names[code] = v
@@ -184,20 +237,22 @@ def api_lookup():
     if c:
         for b in q("SELECT * FROM customer_branches WHERE customer_id = ? AND code != ''", (c["id"],)):
             addr[str(int(b["code"])) if str(b["code"]).isdigit() else b["code"]] = [b["name"], b["region"] or "", b["address"] or "", b["phone"] or ""]
-    return jsonify(NAMES=names, PRICES=prices, ADDR=addr, customer=bool(c))
+    return jsonify(NAMES=names, PRICES=prices, ADDR=addr, customer=bool(c), company=branding(company), has_logo=bool(co_images(company["id"]).get("logo")))
 
 
 def next_dc():
-    """DC numbers are their own series (continues from the old HBL record); invoice numbers come from the ERP's invoice numbering."""
-    seed = int(settings().get("hbl_next_dc") or 0)
-    m = q("SELECT MAX(dc_no) AS m FROM hbl_dcs", one=True)["m"] or 0
+    """DC numbers are their own series per company (continues from the old HBL record); invoice numbers come from the ERP's invoice numbering."""
+    c = co()
+    seed = int(settings().get(_key("hbl_next_dc", c)) or 0)
+    m = q("SELECT MAX(d.dc_no) AS m FROM hbl_dcs d JOIN po_batches b ON b.id = d.batch_id WHERE b.company_id = ?", (c["id"],), one=True)["m"] or 0
     return max(seed, m + 1)
 
 
 def _next_billing_numbers(batch_ids=None):
-    s = int(settings().get("hbl_next_sumno") or 1) - 1
-    i = int(settings().get("hbl_next_sinv") or 1) - 1
-    for r in q("SELECT sumno, sinv FROM hbl_billings"):
+    c = co()
+    s = int(settings().get(_key("hbl_next_sumno", c)) or 1) - 1
+    i = int(settings().get(_key("hbl_next_sinv", c)) or 1) - 1
+    for r in q("SELECT bl.sumno, bl.sinv FROM hbl_billings bl JOIN po_batches b ON b.id = bl.batch_id WHERE b.company_id = ?", (c["id"],)):
         for v, key in ((r["sumno"], "s"), (r["sinv"], "i")):
             digits = "".join(ch for ch in str(v) if ch.isdigit())
             if digits:
@@ -219,9 +274,9 @@ def api_pos():
 @bp.route("/api/next")
 def api_next():
     c = customer()
-    co = c["company_id"] or default_company_id() if c else default_company_id()
+    cid = co()["id"]
     s, i = _next_billing_numbers()
-    return jsonify(next_invoice=next_invoice_number(co), next_dc=next_dc(), next_summary=s, next_sinv=i)
+    return jsonify(next_invoice=next_invoice_number(cid), next_dc=next_dc(), next_summary=s, next_sinv=i)
 
 
 @bp.route("/api/po/<po>")
@@ -294,7 +349,7 @@ def api_import():
         return jsonify(error="Choose the HBL customer first (HBL PO pack page)."), 400
     if not po or not j.get("dcs"):
         return jsonify(error="Nothing to create."), 400
-    co = get_company(c["company_id"]) or get_company(default_company_id())
+    comp = co()
     b = _batch(po, c, create=True)
     h = j.get("header") or {}
     x("UPDATE po_batches SET po_excl = ?, po_tax = ?, po_incl = ? WHERE id = ?", (h.get("excl"), h.get("tax"), h.get("incl"), b["id"]))
@@ -308,13 +363,13 @@ def api_import():
         cc = str(d.get("cc") or "")
         norm = str(int(cc)) if cc.isdigit() else cc  # the bank writes 0627, the branch list keeps 627
         br = q("SELECT * FROM customer_branches WHERE customer_id = ? AND code IN (?, ?) LIMIT 1", (c["id"], cc, norm), one=True)
-        number = next_invoice_number(co["id"])
+        number = next_invoice_number(comp["id"])
         dc_no = next_dc()
-        set_setting("hbl_next_dc", str(dc_no + 1))
+        set_setting(_key("hbl_next_dc"), str(dc_no + 1))
         due = date
         iid = x("""INSERT INTO invoices (number, date, due_date, customer_id, rep_id, notes, tax_rate, subtotal, discount, tax, total, created_by, created_at,
                    company_id, branch_id, batch_id, ref_no, po_no, deliver_to) VALUES (?,?,?,?,?,?,0,0,0,0,0,?,?,?,?,?,?,?,?)""",
-                  (number, date, due, c["id"], c["rep_id"], f"HBL PO {po} request {req}", g.user["id"], now(), co["id"],
+                  (number, date, due, c["id"], c["rep_id"], f"HBL PO {po} request {req}", g.user["id"], now(), comp["id"],
                    br["id"] if br else None, b["id"], req, po,
                    "\n".join(v for v in (br["name"], br["address"], br["phone"]) if v) if br else str(d.get("loc") or "")))
         x("INSERT INTO hbl_dcs (invoice_id, batch_id, po_no, req, cc, loc, person, phone, date, dc_no) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -339,8 +394,8 @@ def api_bill():
         return jsonify(error="This PO has not been created in the ERP yet."), 400
     if not sumno or not sinv:
         return jsonify(error="Type the summary no and the sales tax invoice no."), 400
-    other = q("SELECT po_no FROM hbl_billings WHERE (sumno = ? OR sinv = ?) AND NOT (batch_id = ? AND sumno = ? AND sinv = ?) LIMIT 1",
-              (sumno, sinv, b["id"], sumno, sinv), one=True)
+    other = q("SELECT bl.po_no FROM hbl_billings bl JOIN po_batches pb ON pb.id = bl.batch_id WHERE pb.company_id = ? AND (bl.sumno = ? OR bl.sinv = ?) "
+              "AND NOT (bl.batch_id = ? AND bl.sumno = ? AND bl.sinv = ?) LIMIT 1", (co()["id"], sumno, sinv, b["id"], sumno, sinv), one=True)
     if other:
         return jsonify(error=f"Summary no {sumno} or invoice no {sinv} is already used on another billing (PO {other['po_no']}). Use new numbers."), 400
     old = q("SELECT id FROM hbl_billings WHERE batch_id = ? AND sumno = ? AND sinv = ?", (b["id"], sumno, sinv), one=True)

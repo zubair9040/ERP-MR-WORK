@@ -12,7 +12,10 @@ bp = Blueprint("co", __name__)
 def companies(active_only=True):
     key = "companies_all" if not active_only else "companies_active"
     if key not in g:
-        g.__setattr__(key, q(f"SELECT * FROM companies {'WHERE active = 1' if active_only else ''} ORDER BY sort, id"))
+        from .auth import allowed_companies
+        rows = q(f"SELECT * FROM companies {'WHERE active = 1' if active_only else ''} ORDER BY sort, id")
+        allowed = allowed_companies()
+        g.__setattr__(key, [r for r in rows if r["id"] in allowed] if allowed else rows)
     return g.get(key)
 
 
@@ -69,8 +72,12 @@ def customer_company(customer_id):
 
 @bp.route("/company/<int:cid>")
 def switch(cid):
+    from .auth import allowed_companies
     if cid and not get_company(cid):
         abort(404)
+    allowed = allowed_companies()
+    if allowed and cid not in allowed:
+        cid = min(allowed)  # a distributor cannot look at other companies
     session["co"] = cid or None
     back = request.args.get("next") or request.referrer or url_for("core.dashboard")
     if not back.startswith("/") and "://" in back:
@@ -82,7 +89,7 @@ def switch(cid):
     return redirect(back)
 
 
-FIELDS = ("code", "name", "ntn", "gst_no", "address", "phone", "email", "website", "invoice_note", "color")
+FIELDS = ("code", "name", "ntn", "gst_no", "address", "phone", "email", "website", "invoice_note", "color", "hbl_lines")
 
 
 @bp.route("/settings/companies", methods=["GET", "POST"])
@@ -99,6 +106,7 @@ def manage():
             return redirect(request.full_path)
         vals["code"] = vals["code"].upper()[:12]
         vals["gst_registered"] = 1 if f.get("gst_registered") else 0
+        vals["hbl_enabled"] = 1 if f.get("hbl_enabled") else 0
         try:
             vals["default_tax_rate"] = float(f.get("default_tax_rate") or 0) if vals["gst_registered"] else 0
             vals["next_invoice_number"] = int(f.get("next_invoice_number") or 1)

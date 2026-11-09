@@ -1,6 +1,6 @@
 import re
 
-from erp.db import commit, q, set_setting
+from erp.db import commit, q, set_setting, x
 
 
 def _client(app, user="admin", pw="admin12345"):
@@ -28,11 +28,12 @@ PO = "55555-001"
 
 def _setup(app):
     with app.app_context():
-        cid = q("SELECT id FROM customers WHERE active = 1 ORDER BY id LIMIT 1", one=True)["id"]
-        set_setting("hbl_customer_id", str(cid))
-        set_setting("hbl_next_dc", "56988")
+        c = q("SELECT id, company_id FROM customers WHERE active = 1 ORDER BY company_id, id LIMIT 1", one=True)
+        x("UPDATE companies SET hbl_enabled = 0")
+        x("UPDATE companies SET hbl_enabled = 1, hbl_customer_id = ? WHERE id = ?", (c["id"], c["company_id"]))
+        set_setting(f"hbl_next_dc_c{c['company_id']}", "56988")
         commit()
-    return cid
+    return c["id"]
 
 
 def test_import_gives_real_invoice_numbers_and_is_repeatable(app):

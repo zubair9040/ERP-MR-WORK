@@ -514,7 +514,13 @@ def _render_invoice_form(inv, grid, f):
     items_ = q("SELECT id, code, name, description, unit, price, kind, percent FROM items WHERE active = 1 "
                "ORDER BY kind != 'item', code")
     from .stock import levels
-    lv = levels()
+    from .auth import current_company, is_locked
+    if is_locked():  # a distributor must not see our catalogue or prices: only its own HBL rates
+        mine = {r["code"]: r for r in q("SELECT * FROM hbl_company_items WHERE company_id = ? AND active = 1", (current_company(),))}
+        items_ = [dict(i, price=int(round(mine[i["code"]]["price"] * 100))) for i in items_ if i["kind"] != "item" or i["code"] in mine]
+        lv = {}
+    else:
+        lv = levels()
     item_data = [{"id": i["id"], "code": (i["code"] or i["name"]).upper(), "name": i["name"],
                   "stock": (f"{lv[i['id']]['pcs']:g} pcs" if i["id"] in lv else ""),
                   "desc": i["description"] or i["name"], "unit": i["unit"] or "", "kind": i["kind"],

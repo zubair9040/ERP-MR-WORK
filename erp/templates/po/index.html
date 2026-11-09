@@ -2,6 +2,15 @@
 {% block title %}PO batch billing{% endblock %}
 {% block actions %}{% if can('invoices.create') %}<a class="btn grey" href="{{ url_for('po.new') }}">{{ icon('plus', 16) }} New PO</a>{% endif %}{% endblock %}
 {% block content %}
+{% if hbl %}
+<div class="card" style="padding:0;overflow:hidden;border:2px solid var(--accent)">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:var(--accent-soft)">
+    <b>HBL purchase order for {{ hbl.name }} &mdash; drop the PO PDF below</b>
+    <span><a href="{{ url_for('hbl.index') }}">Setup (customer, numbers, branches)</a> &middot; <a href="{{ url_for('hbl.items') }}">HBL item rates</a></span></div>
+  <iframe id="hblframe" src="{{ url_for('hbl.app_page') }}" style="width:100%;height:760px;border:0;display:block" title="HBL PO to Bill Pack"></iframe>
+</div>
+<script>window.addEventListener('message', e => { if (e.data && e.data.hbl_h) document.getElementById('hblframe').style.height = Math.max(520, e.data.hbl_h + 8) + 'px'; });</script>
+{% endif %}
 <div class="card">
   <p class="muted" style="margin-top:0">One customer PO delivered to many branches: an invoice and DC for each branch, courier tracking, then one combined invoice for head office.</p>
   <div class="seg" style="margin-bottom:12px">

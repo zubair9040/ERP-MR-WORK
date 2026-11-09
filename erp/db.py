@@ -233,6 +233,10 @@ CREATE TABLE IF NOT EXISTS task_comments (
 CREATE TABLE IF NOT EXISTS hbl_items (
   code TEXT PRIMARY KEY, name TEXT NOT NULL, unit TEXT DEFAULT 'PCS', price REAL DEFAULT 0, active INTEGER DEFAULT 1);
 
+CREATE TABLE IF NOT EXISTS hbl_company_items (
+  company_id INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, unit TEXT DEFAULT 'PCS', price REAL DEFAULT 0, active INTEGER DEFAULT 1,
+  PRIMARY KEY (company_id, code));
+
 CREATE TABLE IF NOT EXISTS hbl_dcs (
   invoice_id INTEGER PRIMARY KEY REFERENCES invoices(id), batch_id INTEGER NOT NULL, po_no TEXT NOT NULL, req TEXT DEFAULT '',
   cc TEXT DEFAULT '', loc TEXT DEFAULT '', person TEXT DEFAULT '', phone TEXT DEFAULT '', date TEXT DEFAULT '');
@@ -344,13 +348,15 @@ MIGRATIONS = {
     "order_lines": [("ctn_qty", "TEXT DEFAULT ''")],
     "customer_branches": [("region", "TEXT DEFAULT ''")],
     "hbl_dcs": [("dc_no", "INTEGER")],
+    "companies": [("hbl_enabled", "INTEGER DEFAULT 0"), ("hbl_customer_id", "INTEGER"), ("hbl_lines", "TEXT DEFAULT ''")],
+    "audit_log": [("company_id", "INTEGER")],
     "po_batches": [("po_excl", "REAL"), ("po_tax", "REAL"), ("po_incl", "REAL")],
     "quotes": [("invoice_id", "INTEGER"), ("customer_email", "TEXT DEFAULT ''")],
     "purchases": [("company_id", "INTEGER")],
     "supplier_payments": [("company_id", "INTEGER")],
     "expenses": [("company_id", "INTEGER")],
     "messages": [("channel", "TEXT DEFAULT 'whatsapp'"), ("supplier_id", "INTEGER")],
-    "users": [("role_id", "INTEGER")],
+    "users": [("role_id", "INTEGER"), ("company_ids", "TEXT DEFAULT ''")],
     "customers": [("code", "TEXT DEFAULT ''"), ("city", "TEXT DEFAULT ''"), ("send_by", "TEXT DEFAULT 'whatsapp'"), ("company_id", "INTEGER"), ("payment_mode", "TEXT DEFAULT 'fifo'"), ("statement_mode", "TEXT DEFAULT 'activity'")],
 }
 

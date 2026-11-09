@@ -13,6 +13,9 @@
       {% for r in reps %}<option value="{{ r.id }}" {{ 'selected' if (u and u.rep_id == r.id) or request.form.rep_id == r.id|string }}>{{ r.code }} · {{ r.name }}</option>{% endfor %}</select>
       <small class="muted">Needed when the role is limited to the rep's own customers.</small></label>
     <label>{{ 'New password (leave blank to keep)' if u else 'Password (8+ characters)' }}<input type="password" name="password" autocomplete="new-password" {{ '' if u else 'required' }}></label>
+    <fieldset class="wide" style="border:1px solid var(--line);border-radius:10px;padding:8px 12px"><legend class="muted">Lock this login to company (for a distributor)</legend>
+      {% for co in cos %}<label class="check"><input type="checkbox" name="company_ids" value="{{ co.id }}" {{ 'checked' if co.id in my_cos }}> {{ co.name }}</label>{% endfor %}
+      <small class="muted">Leave all unticked for staff who see every company. A locked login only ever sees its own company's work, with no team chat or tasks, and cannot be an admin.</small></fieldset>
     <label class="check"><input type="checkbox" name="active" {{ 'checked' if not u or u.active }}> Active (can sign in)</label>
   </div>
   <p class="muted" style="margin:4px 0 14px">What each role can do is set under <a href="{{ url_for('core.roles') }}">Roles &amp; permissions</a>. You can make your own roles there.</p>

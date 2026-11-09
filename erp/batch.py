@@ -111,7 +111,10 @@ def index():
         if st == "paid" and cls != "paid":
             continue
         rows.append({"b": b, "t": t, "cls": cls, "label": label})
-    return render_template("po/index.html", rows=rows, st=st)
+    from .hbl import co as hbl_co
+    from .perms import has
+    hbl = hbl_co() if has("invoices.edit") else None
+    return render_template("po/index.html", rows=rows, st=st, hbl=hbl)
 
 
 @bp.route("/new", methods=["GET", "POST"])

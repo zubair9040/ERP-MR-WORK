@@ -5,7 +5,7 @@ from flask import Flask, abort, g, redirect, render_template, request, session, 
 
 from . import db
 from .hr import allowed as hr_allowed
-from .auth import can, check_csrf, csrf_field, csrf_token, is_rep, is_store, load_user, sees_cost
+from .auth import can, check_csrf, csrf_field, csrf_token, is_locked, is_rep, is_store, load_user, sees_cost
 from .perms import role_name
 
 
@@ -105,9 +105,10 @@ def create_app(test_config=None):
         try:
             if request.method == "POST" and request.endpoint not in SKIP_AUDIT and g.get("user") and resp.status_code < 400:
                 ids = {k: v for k, v in (request.view_args or {}).items()}
-                db.x("INSERT INTO audit_log (at, user_id, user_name, ip, method, endpoint, path, status, detail) VALUES (?,?,?,?,?,?,?,?,?)",
+                from .auth import current_company
+                db.x("INSERT INTO audit_log (at, user_id, user_name, ip, method, endpoint, path, status, detail, company_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
                      (db.now(), g.user["id"], g.user["name"], request.remote_addr or "", request.method,
-                      request.endpoint or "", request.path, resp.status_code, str(ids) if ids else ""))
+                      request.endpoint or "", request.path, resp.status_code, str(ids) if ids else "", current_company()))
                 db.commit()
         except Exception:  # noqa: BLE001 - never block a real save because logging failed
             pass
@@ -161,7 +162,7 @@ def create_app(test_config=None):
     @app.context_processor
     def ctx():
         s = db.settings()
-        return dict(csrf_field=csrf_field, csrf_token=csrf_token, can=can, is_rep=is_rep, is_store=is_store, sees_cost=sees_cost, role_name=role_name, void_pending=_void_pending, pending_count=_pending_count, orders_pending=_orders_pending, team_summary=_team_summary, S=s,
+        return dict(csrf_field=csrf_field, csrf_token=csrf_token, can=can, is_locked=is_locked, is_rep=is_rep, is_store=is_store, sees_cost=sees_cost, role_name=role_name, void_pending=_void_pending, pending_count=_pending_count, orders_pending=_orders_pending, team_summary=_team_summary, S=s,
                     cur=s.get("currency", "Rs"), today=db.today(), hr_allowed=hr_allowed,
                     all_companies=_companies, cur_company=_cur_company, co_tag=_co_tag, co_logo=_co_logo)
 
