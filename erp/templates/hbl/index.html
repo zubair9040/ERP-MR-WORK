@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}HBL PO pack{% endblock %}
+{% block actions %}<a class="btn light" href="{{ url_for('hbl.items') }}">HBL item rates</a>{% endblock %}
+{% block content %}
+<div class="card">
+  <h3>1. The HBL customer</h3>
+  <form method="post" action="{{ url_for('hbl.set_customer') }}" class="rowform">{{ csrf_field() }}
+    <select name="customer_id" class="combo"><option value="">— choose the HBL head-office customer —</option>
+      {% for c in custs %}<option value="{{ c.id }}" {{ 'selected' if cust and cust.id == c.id }}>{{ c.name }}</option>{% endfor %}</select>
+    <button class="btn alt small">Save</button></form>
+  {% if cust %}<p class="muted">Branches loaded for {{ cust.name }}: <b>{{ branches }}</b>.
+    {% if branches < 100 %}<form method="post" action="{{ url_for('hbl.load_branches') }}" style="display:inline">{{ csrf_field() }}<button class="btn light small">Load the bank's branch list (about 2,400 branches with addresses)</button></form>{% endif %}</p>{% endif %}
+</div>
+{% if cust %}
+<div class="card">
+  <h3>2. Bills already made in the ERP</h3>
+  <table><tr><th>PO</th><th>DCs / invoices</th><th></th></tr>
+    {% for b in pos %}<tr><td><b>{{ b.po_no }}</b></td><td>{{ b.dcs }}</td><td><a href="{{ url_for('po.view', bid=b.id) }}">Open in PO batch billing</a></td></tr>
+    {% else %}<tr><td colspan="3" class="muted">No HBL PO has been created yet. Drop the first PO PDF below.</td></tr>{% endfor %}</table>
+</div>
+<div class="card" style="padding:0;overflow:hidden">
+  <iframe id="hblframe" src="{{ url_for('hbl.app_page') }}" style="width:100%;height:1500px;border:0" title="HBL PO to Bill Pack"></iframe>
+</div>
+<p class="muted"><a href="{{ url_for('hbl.app_page') }}" target="_blank">Open the pack tool in its own window</a> (better for printing).</p>
+{% endif %}
+{% endblock %}

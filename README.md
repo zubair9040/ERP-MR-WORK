@@ -382,3 +382,16 @@ Couriers and their tracking links are listed in **Settings → Invoices → Cour
 ## Coming next
 
 AI reading of bill and cheque photos, Shopify (online store), sales orders / purchase orders, purchase returns, automatic month-end statements on the 1st, overdue reminders on WhatsApp, sales orders, cash & bank book, a full chart of accounts and balance sheet, and a rep mobile view.
+
+
+---
+
+## HBL PO pack (inside the ERP)
+
+Menu: **Sales → HBL PO pack**. It is your "HBL PO to Bill Pack" tool, now connected to the ERP:
+
+1. **Choose the HBL customer** once, and press *Load the bank's branch list* (about 2,400 branches with address and phone).
+2. **Drop the PO PDF.** The rates are checked against **HBL item rates** (top right of that page, editable). Press **Create DCs & invoices in the ERP**: every branch request becomes a real invoice in **PO batch billing**, and its **DC number is the invoice number** from the ERP.
+3. **Partial billing:** tick only the DCs for this summary. Untick a line, or lower a quantity, to bill part of a DC. Type a new **Summary no** and **Sales tax invoice no**; the ERP suggests the next ones and refuses a number that is already used.
+4. **Print:** summary, sales tax invoice, undertaking, item summary, bills, DCs and address slips are made exactly as in the old tool. The billing is saved in the ERP; the rest of the PO can be billed later with new numbers.
+5. The ERP invoice of each DC always equals **what has been billed so far**. Before the first billing it shows the full PO quantity.

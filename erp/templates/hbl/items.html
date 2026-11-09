@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}HBL item rates{% endblock %}
+{% block content %}
+<form method="post" class="card">{{ csrf_field() }}
+  <p class="muted">The bank's item code (SE…), your name for it, the unit and your selling rate. New POs are billed at these rates (never above the PO rate when the cap is on).</p>
+  <div class="tablewrap"><table>
+    <tr><th>Code</th><th>Name</th><th>Unit</th><th class="n">Rate</th></tr>
+    <tr><td><input name="new_code" placeholder="new code"></td><td><input name="new_name" placeholder="name"></td><td><input name="new_unit" value="PCS" size="5"></td><td><input name="new_price" size="9"></td></tr>
+    {% for r in rows %}<tr><td><input type="hidden" name="code" value="{{ r.code }}"><b>{{ r.code }}</b></td>
+      <td><input name="name_{{ r.code }}" value="{{ r.name }}" style="width:100%"></td><td><input name="unit_{{ r.code }}" value="{{ r.unit }}" size="5"></td>
+      <td class="n"><input name="price_{{ r.code }}" value="{{ r.price }}" size="12" style="text-align:right"></td></tr>{% endfor %}
+  </table></div>
+  <button class="btn alt">Save rates</button>
+</form>
+{% endblock %}

@@ -230,6 +230,28 @@ CREATE INDEX IF NOT EXISTS ix_tasks_assignee ON tasks(assignee_id, status);
 CREATE TABLE IF NOT EXISTS task_comments (
   id INTEGER PRIMARY KEY, task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, user_name TEXT, body TEXT, created_at TEXT);
 
+CREATE TABLE IF NOT EXISTS hbl_items (
+  code TEXT PRIMARY KEY, name TEXT NOT NULL, unit TEXT DEFAULT 'PCS', price REAL DEFAULT 0, active INTEGER DEFAULT 1);
+
+CREATE TABLE IF NOT EXISTS hbl_dcs (
+  invoice_id INTEGER PRIMARY KEY REFERENCES invoices(id), batch_id INTEGER NOT NULL, po_no TEXT NOT NULL, req TEXT DEFAULT '',
+  cc TEXT DEFAULT '', loc TEXT DEFAULT '', person TEXT DEFAULT '', phone TEXT DEFAULT '', date TEXT DEFAULT '');
+CREATE INDEX IF NOT EXISTS ix_hbldc_batch ON hbl_dcs(batch_id);
+
+CREATE TABLE IF NOT EXISTS hbl_lines (
+  id INTEGER PRIMARY KEY, invoice_id INTEGER NOT NULL, sort INTEGER DEFAULT 0, code TEXT, name TEXT, unit TEXT,
+  orig_qty REAL DEFAULT 0, qty REAL DEFAULT 0, price REAL DEFAULT 0, tax REAL DEFAULT 0, cancelled INTEGER DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_hbllines_inv ON hbl_lines(invoice_id);
+
+CREATE TABLE IF NOT EXISTS hbl_billings (
+  id INTEGER PRIMARY KEY, batch_id INTEGER NOT NULL, po_no TEXT NOT NULL, sumno TEXT NOT NULL, sinv TEXT NOT NULL, isn TEXT DEFAULT '',
+  date TEXT, created_by INTEGER, created_at TEXT);
+CREATE INDEX IF NOT EXISTS ix_hblbill_batch ON hbl_billings(batch_id);
+
+CREATE TABLE IF NOT EXISTS hbl_billing_lines (
+  id INTEGER PRIMARY KEY, billing_id INTEGER NOT NULL REFERENCES hbl_billings(id) ON DELETE CASCADE, invoice_id INTEGER NOT NULL,
+  code TEXT, name TEXT, unit TEXT, qty REAL, price REAL, tax REAL);
+
 CREATE INDEX IF NOT EXISTS ix_orders_status ON orders(status, date);
 CREATE INDEX IF NOT EXISTS ix_inv_cust ON invoices(customer_id, date);
 CREATE INDEX IF NOT EXISTS ix_pay_cust ON payments(customer_id, date);
@@ -320,6 +342,8 @@ MIGRATIONS = {
     "wh_lines": [("ctn", "REAL"), ("ppc", "REAL"), ("loose", "REAL")],
     "credit_notes": [("company_id", "INTEGER")],
     "order_lines": [("ctn_qty", "TEXT DEFAULT ''")],
+    "customer_branches": [("region", "TEXT DEFAULT ''")],
+    "po_batches": [("po_excl", "REAL"), ("po_tax", "REAL"), ("po_incl", "REAL")],
     "quotes": [("invoice_id", "INTEGER"), ("customer_email", "TEXT DEFAULT ''")],
     "purchases": [("company_id", "INTEGER")],
     "supplier_payments": [("company_id", "INTEGER")],

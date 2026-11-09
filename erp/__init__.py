@@ -192,6 +192,8 @@ def create_app(test_config=None):
     from .orders import bp as orders_bp, pending_count as _orders_pending
     from .quotes import bp as quotes_bp
     app.register_blueprint(orders_bp)
+    from .hbl import bp as hbl_bp
+    app.register_blueprint(hbl_bp)
     from .team import bp as team_bp, summary as _team_summary
     app.register_blueprint(team_bp)
     app.register_blueprint(quotes_bp)
