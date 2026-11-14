@@ -19,6 +19,7 @@
       <span class="logo" {% if CUR %}style="background:{{ CUR.color }};font-size:{{ '11px' if CUR.code|length > 2 else '14px' }}"{% endif %}>{{ (CUR.code if CUR else S.company_name|initials)[:3] }}</span>
       <span class="brand-text"><b>{{ CUR.name if CUR else S.company_name }}</b><small>{{ 'Company view' if CUR else ('All companies' if all_companies()|length > 1 else 'Business Suite') }}</small></span>
     </a>
+    {% if can('admin.settings') %}<a class="xlbtn" href="{{ url_for('xl.index') }}" title="Download everything to Excel">{{ icon('download', 14) }} Excel</a>{% endif %}
     {% set ep = request.endpoint or '' %}
     <nav>
       {% if is_store() %}
@@ -118,7 +119,8 @@
             {% if co_logo(c.id) %}<img src="{{ co_logo(c.id) }}" alt="">{% else %}<i style="background:{{ c.color }}"></i>{% endif %}
             <span><b>{{ c.name }}</b><small>{{ c.code }} · {{ 'GST' if c.gst_registered else 'non-GST' }}{{ ' · NTN ' ~ c.ntn if c.ntn }}</small></span>{{ icon('check', 16) }}</a>
           {% endfor %}
-          {% if can('admin.settings') %}<a href="{{ url_for('co.manage') }}#add" class="cosel-add">{{ icon('plus', 15) }} Add company</a>{% endif %}
+          {% if can('admin.settings') %}<a href="{{ url_for('xl.index') }}" class="cosel-add">{{ icon('download', 15) }} Download to Excel</a>
+          <a href="{{ url_for('co.manage') }}#add" class="cosel-add">{{ icon('plus', 15) }} Add company</a>{% endif %}
         </div>
       </div>{% endif %}
       {% if is_store() or request.endpoint.startswith('wh.') %}

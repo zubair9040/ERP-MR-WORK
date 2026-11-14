@@ -226,7 +226,7 @@ RULES = {
     "ap.index": ("invoices.view", "payments.view", "approve.voids"), "ap.decide": "approve.voids",
     "ap.cancel": ("invoices.view", "payments.view", "approve.voids"),
     "sales.transactions": ("invoices.view", "payments.view"), "sales.search": ("customers.view", "invoices.view", "payments.view"),
-    "co.manage": "admin.settings", "co.defaults": "admin.settings",
+    "co.manage": "admin.settings", "xl.index": "admin.settings", "co.defaults": "admin.settings",
     "pd.editor": "admin.settings", "pd.image": "admin.settings", "pd.save": "admin.settings", "pd.off": "admin.settings",
     "pd.preview": "admin.settings", "pd.templates": "admin.settings", "pd.template_preview": "admin.settings", "importer.index": "admin.import",
 }

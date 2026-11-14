@@ -558,3 +558,6 @@ tr.subtot td { font-weight: 700; background: var(--head-bg, #f6f7fb) }
 .pweye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 6px }
 .signin { background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; border: 0 !important }
 .signin:disabled { opacity: .7; cursor: wait }
+.xlbtn { display: inline-flex; align-items: center; gap: 6px; margin: 0 16px 10px; padding: 5px 11px; border-radius: 8px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.12); color: inherit; text-decoration: none !important }
+.xlbtn:hover { background: rgba(255,255,255,.22) }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }

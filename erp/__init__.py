@@ -184,6 +184,8 @@ def create_app(test_config=None):
     app.register_blueprint(co_bp)
     from .supdocs import bp as sup_bp
     app.register_blueprint(sup_bp)
+    from .xlall import bp as xl_bp
+    app.register_blueprint(xl_bp)
     from .approvals import bp as ap_bp
     app.register_blueprint(ap_bp)
     from .batch import bp as po_bp

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Download to Excel{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px">
+  <h3>Download to Excel</h3>
+  <p class="muted">Pick what you want. You get one Excel file with one sheet for each list. Item rates keep every decimal.</p>
+  {% if err %}<p class="flash err"><span>{{ err }}</span></p>{% endif %}
+  <form method="post">
+    {{ csrf_field() }}
+    <label>Company<select name="company">
+      {% if not allowed %}<option value="">All companies together</option>{% endif %}
+      {% for c in comps %}<option value="{{ c.id }}" {{ 'selected' if cur and cur == c.id }}>{{ c.name }}</option>{% endfor %}
+    </select></label>
+    <div class="row2"><label>From date (optional)<input type="date" name="d1" value="{{ f.get('d1', '') }}"></label>
+    <label>To date (optional)<input type="date" name="d2" value="{{ f.get('d2', '') }}"></label></div>
+    <p style="margin:12px 0 4px"><b>What do you want?</b> <a href="#" onclick="document.querySelectorAll('.xk').forEach(c=>c.checked=true);return false">tick all</a> · <a href="#" onclick="document.querySelectorAll('.xk').forEach(c=>c.checked=false);return false">clear</a></p>
+    {% for k, t in picks %}<label class="check"><input class="xk" type="checkbox" name="what" value="{{ k }}" {{ 'checked' if k in ('customers','invoices','payments') }}> {{ t }}</label>{% endfor %}
+    <button class="btn" style="margin-top:12px">{{ icon('download', 16) }} Download Excel</button>
+  </form>
+</div>
+{% endblock %}
